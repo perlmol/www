@@ -18,7 +18,7 @@ my @modules = qw(
     Chemistry::Ring Chemistry::Ring::Find Chemistry::File::SMARTS PerlMol
     Chemistry::File::XYZ Chemistry::InternalCoords::Builder
     Chemistry::File::SLN Chemistry::File::FormulaPattern 
-    Chemistry::FormulaPattern
+    Chemistry::FormulaPattern Chemistry::Reaction
 );
 
 my %modules;

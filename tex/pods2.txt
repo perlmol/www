@@ -5,6 +5,7 @@
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/Pattern.pm
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/FormulaPattern.pm
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/MidasPattern.pm
+/usr/lib/perl5/site_perl/5.8.5/Chemistry/Reaction.pm
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/Domain.pm
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/MacroMol.pm
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/Ring.pm
