@@ -1,0 +1,91 @@
+[% PROCESS head title="Features" %]
+
+[% INCLUDE nav.html section=2 %]
+<!-- main content -->
+<div class="main">
+<h1>PerlMol - Features</h1> 
+
+<p>What follows is a list of the main features currently implemented in the
+PerlMol toolkit, along with their status, according to this code:
+
+<table class="features">
+<tr> <td class="name" >Basic functionality only (very incomplete)<td class="value">1 
+<tr> <td class="name" >Partially implemented<td class="value">2 
+<tr> <td class="name" >Mostly implemented (missing minor features or optimizations)<td class="value">3 
+<tr> <td class="name" >Fully implemented<td class="value">4 
+</table>
+
+<p>Note that even level 1 features <i>work</i>, it's just that they don't do
+everything yet. For details about missing features and possible problems, see
+the appropriate manpage.
+
+<h2>Basic functions</h2>
+<table class="features">
+<tr> <td class="name">Clone molecules <td class="value">3
+<tr> <td class="name">Delete atoms and bonds <td class="value">3
+<tr> <td class="name">Combine/separate molecules (connected graphs) <td class="value">3
+</table>
+
+<h2>Geometric functions</h2>
+<table class="features">
+<tr> <td class="name">Calculate distances, angles, and dihedrals from cartesian coordinates <td class="value">4
+<tr> <td class="name">Find shortest distance between two molecules <td class="value">3
+<tr> <td class="name">Cartesian coordinates from internal coordinates <td class="value">4
+<tr> <td class="name">Z-matrix builder: create an internal coordinate 
+representation of a molecule from scratch using the Cartesian coordinates
+    <td class="value">3
+<tr> <td class="name">Calculate the centroid and best-fit plane of a ring <td class="value">4
+</table>
+
+<h2>Topological functions</h2>
+<table class="features">
+<tr> <td class="name">Create bonds from cartesian coordinates <td class="value">3
+<tr> <td class="name">Automatically assign formal bond orders <td class="value">3
+<tr> <td class="name">Ring perception (including SSSR)<td class="value">3
+<tr> <td class="name">Detect aromaticity <td class="value">2
+<tr> <td class="name">Substructure matching <td class="value">3
+<tr> <td class="name">Formula matching <td class="value">4
+<tr> <td class="name">Canonicalization / topological symmetry perception <td class="value">4
+<tr> <td class="name">Z-matrix builder: create an internal coordinate 
+representation of a molecule from scratch using the Cartesian coordinates
+    <td class="value">3
+</table>
+
+<h2>Input/output and file formats</h2>
+<table class="features">
+<tr> <td class="name">MDL Molfile parser/writer <td class="value">2
+<tr> <td class="name">MDL SDF file parser/writer <td class="value">2
+<tr> <td class="name">PDB file parser/writer <td class="value">2
+<tr> <td class="name">SMILES parser/writer <td class="value">3
+<tr> <td class="name">Unique SMILES generator <td class="value">3
+<tr> <td class="name">SMARTS parser <td class="value">3
+<tr> <td class="name">Sybyl Line Notation (SLN) parser/writer <td
+class="value">2
+<tr> <td class="name">Midas/Chimera atom specification language parser <td
+class="value">2
+<tr> <td class="name">Formula parser/formatter <td class="value">4
+<tr> <td class="name">Formula pattern parser <td class="value">4
+<tr> <td class="name">Mopac input file parser/writer <td class="value">3
+<tr> <td class="name">XYZ format file parser/writer <td class="value">4
+<tr> <td class="name">Perl Data::Dumper file format <td class="value">4
+<tr> <td class="name">A "printf" for molecules and atoms <td class="value">3
+</table>
+
+<h2>Mini-language</h2>
+<table class="features">
+<tr> <td class="name">Mok - "an AWK for molecules"<td class="value">3
+</table>
+
+<h2>Frequently Asked Question: When will feature X be implemented?</h2>
+
+<p><b>Answer:</b> I usually add features when I need them. Some features I
+will never need, so they are not likely to be implemented by me. However, if
+<i>you</i> implement the feature <i>you</i> need and want to donate it so that
+I can add it to the PerlMol distribution, I'll be happy to do so. Any feedback
+is welcome, however, even if I can't implement the feature myself.
+
+</div>
+
+</body>
+</html>
+

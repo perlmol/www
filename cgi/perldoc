@@ -1,0 +1,36 @@
+#!/usr/bin/perl
+
+use CGI qw(param redirect);
+
+my $query = param("keywords");
+my $BASE_HERE = "http://www.perlmol.org/pod";
+#my $BASE_HERE = "http://localhost/pod";
+my $BASE_THERE = "http://search.cpan.org/perldoc";
+
+my @modules = qw( 
+    Chemistry::Atom Chemistry::Bond Chemistry::Bond::Find
+    Chemistry::Domain Chemistry::File Chemistry::File::Formula
+    Chemistry::File::MDLMol Chemistry::File::PDB Chemistry::File::SDF
+    Chemistry::File::SMILES Chemistry::MacroMol Chemistry::Mok Chemistry::Mol
+    Chemistry::Obj Chemistry::Pattern Chemistry::Pattern::Atom
+    Chemistry::Pattern::Bond Chemistry::Tutorial mok Chemistry::InternalCoords
+    Chemistry::File::Mopac Chemistry::File::Dumper Chemistry::Canonicalize
+    Chemistry::Ring Chemistry::Ring::Find Chemistry::File::SMARTS PerlMol
+    Chemistry::File::XYZ Chemistry::InternalCoords::Builder
+    Chemistry::File::SLN Chemistry::File::FormulaPattern 
+    Chemistry::FormulaPattern
+);
+
+my %modules;
+@modules{@modules} = ();
+my $uri;
+
+if (exists $modules{$query}) {
+    $query =~ s/::/\//g;
+    $uri = "$BASE_HERE/$query.html"
+} else {
+    $uri = "$BASE_THERE/$query";
+}
+
+print redirect($uri);
+

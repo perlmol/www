@@ -1,0 +1,109 @@
+[% PROCESS head title="Download and Installation" %]
+
+[% INCLUDE nav.html section=5 %]
+[% SET version = "0.2500" %]
+<!-- main content -->
+<div class="main">
+<h1>PerlMol - Download and Installation</h1> 
+
+<p>The PerlMol modules are being developed for perl 5.8.x, but it should also
+work with 5.6.x. They depend on other modules from CPAN, such as
+Math::VectorReal. See the README files for details.
+
+<p>If you have the CPAN module configured properly, you can install each module
+separately by using <code>perl -MCPAN -e 'install Chemistry::Mol'</code> (to
+give an example).
+
+<p>You can also download the tarballs and install them yourself by following
+the instructions on the README files, either from
+<a href="http://search.cpan.org/~itub/">CPAN</a> or from 
+<a href="https://sourceforge.net/project/showfiles.php?group_id=106995">SourceForge.net</a>.
+
+<h2>PerlMol bundle</h2>
+
+<p>If you don't have or can't get the CPAN module configured and/or you want to
+install everything as one bundle instead of module by module, follow these
+instructions (this works for Unix-like systems, including Cygwin.):</p>
+
+<ol> 
+
+<li>Get the latest version of the PerlMol bundle. <strong>Note that some
+of the most recent modules may not yet be included in the bundle.</strong>
+
+    <ul>
+    <li><a href="http://search.cpan.org/dist/Perlmol/">CPAN</a>
+    <li><a href="http://prdownloads.sourceforge.net/perlmol/PerlMol-[% version %].tar.gz?download">SourceForge.net</a>
+    </ul>
+<li>Untar it in a temporary directory and change to that directory:
+<pre>
+tar xvzf PerlMol-[% version %].tar.gz
+cd PerlMol-[% version %]
+</pre>
+<li>Build and install the modules:
+<pre>
+perl Makefile.PL
+make
+make test
+make install
+</pre>
+</ol>
+
+<p>The last step may require root or administrator access. If you don't have it
+or you prefer to install everything in your home directory, you can use
+<code>perl Makefile.PL PREFIX=/home/<i>my_username</i></code> or something like
+that. In that case you also need to make sure that perl knows how to find the
+modules by adding the installation directory to your include path. Add these to
+your profile (.bashrc, .cshrc, etc.)
+
+<pre>
+# for sh, bash, ksh, etc.
+PERL5LIB=/home/<i>my_username</i>/lib/perl5/site_perl/<i>perl_version</i>
+export PERL5LIB
+
+# for example:
+PERL5LIB=/home/ivan/lib/perl5/site_perl/5.8.4
+export PERL5LIB
+
+# for csh, tcsh
+setenv PERL5LIB /home/<i>my_username</i>/lib/perl5/site_perl/<i>perl_version</i>
+
+# for example:
+setenv PERL5LIB /home/ivan/lib/perl5/site_perl/5.8.4
+</pre>
+
+<h2>A note about Perl versions</h2>
+
+<p>If you have perl-5.8.0 or more recent, the PerlMol bundle has everything you
+need. If you have an earlier version of Perl, you will need these additional
+modules (which are included with perl-5.8.0):</p>
+
+<pre>
+    Test::Simple        0.45
+    Scalar::Util        1.07
+    Storable            2.04
+    Text::Balanced      1.89
+</pre>
+
+<h2>CVS (development version)</h2>
+
+<p>If you are interested in helping develop PerlMol or you want to take
+a look at the latest developments, you can take a look at the
+<abbr title="Concurrent Versions System">CVS</abbr> repository, either
+through the <a href="http://cvs.perlmol.org/viewcvs.py/perlmol/">ViewCVS</a>
+web interface, or through any CVS client. To connect anonymously using
+the command-line CVS client, use the following commands:
+
+<pre>
+cvs -d:pserver:anonymous@cvs.perlmol.org:/cvsroot/perlmol login
+cvs -z3 -d:pserver:anonymous@cvs.perlmol.org:/cvsroot/perlmol co <em>modulename</em>
+</pre>
+
+<p>Where <em>modulename</em> corresponds to one of the CPAN distribution names,
+in all lowercase (for example, <em>chemistry-mol</em>), or <em>all</em> to 
+get all the CVS modules at once.
+
+</div>
+
+</body>
+</html>
+
