@@ -1,1 +1,1 @@
-/usr/lib/perl5/site_perl/5.8.2/cygwin-thread-multi-64int/PerlMol.pm
+/usr/lib/perl5/site_perl/5.8.5/PerlMol.pm
