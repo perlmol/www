@@ -61,7 +61,7 @@ TT
         title => "PerlMol Doc - $name",
         no_index => 1,
         only_content => 1,
-
+        basic_entities => 1,
     );
 
     #print "$base/$path";

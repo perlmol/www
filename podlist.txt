@@ -30,3 +30,4 @@
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/Pattern/Bond.pm
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/Pattern.pm
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/Reaction.pm
+/usr/lib/perl5/site_perl/5.8.5/Chemistry/Isotope.pm

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+#if false ; then
+
 echo "converting PODs to HTML"
 ./mypod2html.pl -d6 -b tt/pod `cat podlist.txt`
 ./mypod2html.pl -d6 -b tt/pod -s3 `cat tut.txt`
@@ -14,6 +16,8 @@ pslatex perlmol.tex
 dvipdf perlmol.dvi
 cd ..
 cp tex/perlmol.pdf tt/pod/perlmol.pdf
+
+#fi
 
 echo "running templates"
 ttree -f tt.conf

@@ -1,34 +1,67 @@
 [% PROCESS head title="Download and Installation" %]
 
 [% INCLUDE nav.html section=5 %]
-[% SET version = "0.2500" %]
+[% 
+    SET version = "0.2600";
+    SET ppd_version = "0.26_00";
+    SET perl_version = "5.8.5";
+%]
+
 <!-- main content -->
 <div class="main">
 <h1>PerlMol - Download and Installation</h1> 
 
-<p>The PerlMol modules are being developed for perl 5.8.x, but it should also
-work with 5.6.x. They depend on other modules from CPAN, such as
-Math::VectorReal. See the README files for details.
+<p>The PerlMol modules are being developed for perl 5.8.x and are known to work
+under Windows, Linux, FreeBSD, Solaris, and OS X. They are backward-compatible
+with perl 5.6.x, but you are strongly encouraged to upgrade to [% perl_version
+%] because support for older versions may be removed in the future. PerlMol
+depends on other modules available on CPAN, such as Math::VectorReal. See the
+README files for details.
+
+<p>There are three main ways of installing the PerlMol modules:
+
+<ol>
+
+<li><a href="#cpan">Automated installation using the CPAN.pm module</a> -
+recommended way for UNIX-compatible systems.
+
+<li><a href="#bundle">Manual install of the PerlMol bundle</a> - alternative
+way if CPAN.pm is not an option for some reason.
+
+<li><a href="#ppm">PPM package for Windows ActivePerl 5.8</a> - easiest way of
+installing under Windows.
+
+<li><a href="#cvs">CVS Repository</a> - for developers that know what they are
+doing and are interested in trying the latest unreleased development versions.
+
+</ol>
+
+<a name="cpan"></a>
+<h2>Automated installation via CPAN.pm</h2>
 
 <p>If you have the CPAN module configured properly, you can install each module
 separately by using <code>perl -MCPAN -e 'install Chemistry::Mol'</code> (to
-give an example).
+give an example). To install the latest bundle do <code>perl -MCPAN -e 'install
+PerlMol'</code>. <strong>But note that some of the most recent modules may not
+be included in the bundle yet.</strong>
 
-<p>You can also download the tarballs and install them yourself by following
-the instructions on the README files, either from
-<a href="http://search.cpan.org/~itub/">CPAN</a> or from 
-<a href="https://sourceforge.net/project/showfiles.php?group_id=106995">SourceForge.net</a>.
+<p>You can also download the tarballs for individual modules and install them
+yourself by following the instructions on the README files, either from <a
+href="http://search.cpan.org/~itub/">CPAN</a> or from <a
+href="https://sourceforge.net/project/showfiles.php?group_id=106995">SourceForge.net</a>.
 
-<h2>PerlMol bundle</h2>
+<a name="bundle"></a>
+<h2>PerlMol bundle - manual installation</h2>
 
 <p>If you don't have or can't get the CPAN module configured and/or you want to
 install everything as one bundle instead of module by module, follow these
-instructions (this works for Unix-like systems, including Cygwin.):</p>
+instructions (this works for Unix-like systems, including Cygwin and OS X, and
+for ActivePerl under Windows):</p>
 
 <ol> 
 
 <li>Get the latest version of the PerlMol bundle. <strong>Note that some
-of the most recent modules may not yet be included in the bundle.</strong>
+of the most recent modules may not be included in the bundle yet.</strong>
 
     <ul>
     <li><a href="http://search.cpan.org/dist/Perlmol/">CPAN</a>
@@ -48,6 +81,10 @@ make install
 </pre>
 </ol>
 
+<p><strong>NOTE:</strong> If you are using ActivePerl/Windows, you may have to
+install and use nmake instead of make. Or see the next section for how to
+install using PPM.
+
 <p>The last step may require root or administrator access. If you don't have it
 or you prefer to install everything in your home directory, you can use
 <code>perl Makefile.PL PREFIX=/home/<i>my_username</i></code> or something like
@@ -61,15 +98,33 @@ PERL5LIB=/home/<i>my_username</i>/lib/perl5/site_perl/<i>perl_version</i>
 export PERL5LIB
 
 # for example:
-PERL5LIB=/home/ivan/lib/perl5/site_perl/5.8.4
+PERL5LIB=/home/ivan/lib/perl5/site_perl/[% perl_version %]
 export PERL5LIB
 
 # for csh, tcsh
 setenv PERL5LIB /home/<i>my_username</i>/lib/perl5/site_perl/<i>perl_version</i>
 
 # for example:
-setenv PERL5LIB /home/ivan/lib/perl5/site_perl/5.8.4
+setenv PERL5LIB /home/ivan/lib/perl5/site_perl/[% perl_version %]
 </pre>
+
+<a name="ppm"></a>
+<h2>PPM Package for Windows/ActivePerl</h2>
+
+<p>The easiest way of installing PerlMol if you are using ActivePerl for
+Windows is to use PPM. Note, however, that several of the PerlMol modules in
+the official ActiveState repositories are outdated or built incorrectly, so
+don't use them or use them at your own risk! 
+
+<p>The PerlMol bundle (but not the separate modules) is available as a ppm
+package for Perl 5.8.x on CPAN; to install it do the following:
+
+<pre>
+ppm
+install http://cpan.org/authors/id/I/IT/ITUB/ppm/PerlMol-[% ppd_version %].ppd
+</pre>
+
+<p>Perl 5.6 PPM packages are not supplied or supported.
 
 <h2>A note about Perl versions</h2>
 
@@ -84,6 +139,7 @@ modules (which are included with perl-5.8.0):</p>
     Text::Balanced      1.89
 </pre>
 
+<a name="cvs"></a>
 <h2>CVS (development version)</h2>
 
 <p>If you are interested in helping develop PerlMol or you want to take

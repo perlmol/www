@@ -32,4 +32,5 @@
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/Canonicalize.pm
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/InternalCoords/Builder.pm
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/Ring/Find.pm
+/usr/lib/perl5/site_perl/5.8.5/Chemistry/Isotope.pm
 /usr/bin/mok
