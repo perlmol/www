@@ -19,6 +19,8 @@ my @modules = qw(
     Chemistry::File::XYZ Chemistry::InternalCoords::Builder
     Chemistry::File::SLN Chemistry::File::FormulaPattern 
     Chemistry::FormulaPattern Chemistry::Reaction Chemistry::Isotope
+    Chemistry::MidasPattern Chemistry::File::MidasPattern
+    Chemistry::3DBuilder Chemistry::File::VRML
 );
 
 my %modules;

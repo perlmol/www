@@ -1,3 +1,4 @@
+/usr/lib/perl5/site_perl/5.8.5/Chemistry/3DBuilder.pm
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/Atom.pm
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/Bond.pm
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/Bond/Find.pm
@@ -14,6 +15,7 @@
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/File/SLN.pm
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/File/SMARTS.pm
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/File/SMILES.pm
+/usr/lib/perl5/site_perl/5.8.5/Chemistry/File/VRML.pm
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/File/XYZ.pm
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/File.pm
 /usr/lib/perl5/site_perl/5.8.5/Chemistry/FormulaPattern.pm
