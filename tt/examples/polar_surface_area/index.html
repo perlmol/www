@@ -1,0 +1,578 @@
+[% PROCESS head title="Example: Polar surface area" %]
+
+[% INCLUDE nav.html %]
+<!-- main content -->
+<div class="main">
+<h1>PerlMol - Example: Polar surface area</h1> 
+
+
+<p>Calculation of polar surface area based on fragment contributions (TPSA)
+
+<p>Sent by Konrad Koehler, Karo Bio AB
+
+<p>Originally a C program by Peter Ertl, Novartis, translated to Perl by Eric
+Allen, using DayPerl.
+
+<p>The program reads a list of SMILES strings from stdin, and writes SMILES
+and the calculated TPSA on stdout.
+
+
+<h2>Files</h2>
+<ul>
+<li><a href="psa.pl">psa.pl</a>      - the program
+<li><a href="input.smi">input.smi</a>   - a few sample SMILES strings
+<li><a href="output.smi">output.smi</a>  - the results of running ./psa.pl -f input.smi
+</ul>
+
+<h2>Code</h2>
+<pre>
+<span class="synPreProc">#!/usr/bin/perl</span>
+<span class="synComment">#</span>
+<span class="synComment"># http://www.daylight.com/support/contrib/ertl/tpsa.pl</span>
+<span class="synComment"># This script is a conversion of Peter Ertl's c program tpsa.c into Perl.</span>
+<span class="synComment"># I added a few additional features, like the ability to use files as input</span>
+<span class="synComment"># and output.  -- Eric Allen</span>
+<span class="synComment"># </span>
+<span class="synComment"># +++++++++++++++++++++++++</span>
+<span class="synComment"># </span>
+<span class="synComment">#  Calculation of polar surface area based on fragment contributions (TPSA)</span>
+<span class="synComment">#  Peter Ertl, Novartis Pharma AG, Basel, August 2000</span>
+<span class="synComment">#  peter.ertl@pharma.novartis.com || peter.ertl@altavista.net</span>
+<span class="synComment">#  The program uses the SMILES Daylight Toolkit module.</span>
+<span class="synComment">#</span>
+<span class="synComment">#  For description of the methodology see :</span>
+<span class="synComment">#  P. Ertl, B. Rohde, P. Selzer</span>
+<span class="synComment">#  Fast Calculation of Molecular Polar Surface Area as a Sum of Fragment-based</span>
+<span class="synComment">#  Contributions and Its Application to the Prediction of Drug Transport </span>
+<span class="synComment">#  Properties, J.Med.Chem. 43, 3714-3717, 2000</span>
+<span class="synComment">#</span>
+<span class="synComment">#  The program reads a list of SMILES strings from stdin, and writes SMILES</span>
+<span class="synComment">#  and the calculated TPSA on stdout.</span>
+<span class="synComment">#  The program expects &quot;problematic&quot; nitrogens in pentavalent form, i.e. nitro </span>
+<span class="synComment">#  groups as -N(=O)=O, N-oxides as c1ccccn1=O, and azides as -N=N#N.  </span>
+<span class="synComment">#</span>
+<span class="synComment">#  This contrib program comes with absolutely no warranty of any kind.</span>
+<span class="synComment">#</span>
+<span class="synComment"># +++++++++++++++++++++++++</span>
+<span class="synComment">#</span>
+<span class="synComment"># Revision History</span>
+<span class="synComment">#</span>
+<span class="synComment"># Date         Who                 What</span>
+<span class="synComment"># -----------  ------------------  --------------------------------------------</span>
+<span class="synComment"># 08-MAR-2001  Eric Allen          Converted c program to Perl.</span>
+<span class="synComment"># 13-MAY-2005  Konrad Koehler      Replaced Daylight Dependencies with PerlMol modules.</span>
+<span class="synComment"># </span>
+
+<span class="synStatement">use strict</span>;
+
+<span class="synComment"># KFK: Commented out the following line and replaced by the following 9 lines:</span>
+<span class="synComment">#use DayPerl;</span>
+<span class="synStatement">use </span>Chemistry::Mol;
+<span class="synStatement">use </span>Chemistry::Atom;
+<span class="synStatement">use </span>Chemistry::Pattern;
+<span class="synStatement">use </span>Chemistry::File::SMILES;
+<span class="synStatement">use </span>Chemistry::File::SMARTS;
+<span class="synStatement">use </span>Chemistry::Bond::Find;
+<span class="synStatement">use </span>Chemistry::Ring;
+<span class="synStatement">use </span>Chemistry::Ring::Find <span class="synConstant">':all'</span>;
+<span class="synStatement">use </span>Chemistry::Ring <span class="synConstant">'aromatize_mol'</span>;
+
+
+<span class="synStatement">my</span> <span class="synIdentifier">%inputArguments</span> = <span class="synIdentifier">@ARGV</span>;
+<span class="synStatement">my</span> <span class="synIdentifier">$calculatedOne</span> = <span class="synConstant">0</span>;
+<span class="synStatement">my</span> <span class="synIdentifier">$usageString</span> = <span class="synConstant">&quot;usage:</span><span class="synSpecial">\n\t</span><span class="synConstant">calculatepsa.pl 'smiles string'</span><span class="synSpecial">\n</span><span class="synConstant">or</span><span class="synSpecial">\n\t</span><span class="synConstant">calculatepsa.pl -f filename [-o outputfilename]</span><span class="synSpecial">\n\n</span><span class="synConstant">&quot;</span>;
+
+<span class="synStatement">my</span> <span class="synIdentifier">$line</span>;
+<span class="synStatement">my</span> <span class="synIdentifier">$smiles</span>;
+<span class="synStatement">my</span> <span class="synIdentifier">$id</span>;
+<span class="synStatement">my</span> <span class="synIdentifier">$psa</span>;
+<span class="synStatement">my</span> <span class="synIdentifier">$message</span>;
+<span class="synStatement">my</span> <span class="synIdentifier">$filename</span>;
+<span class="synStatement">my</span> <span class="synIdentifier">$outfilename</span>;
+
+<span class="synStatement">my</span> <span class="synIdentifier">$writeToFile</span> = <span class="synConstant">0</span>;
+
+<span class="synStatement">if</span>(<span class="synIdentifier">$#ARGV</span> &gt; <span class="synConstant">0</span>)
+{
+	<span class="synComment"># means we have multiple arguements to deal with</span>
+	
+	<span class="synStatement">if</span>(<span class="synStatement">defined</span>(<span class="synIdentifier">$inputArguments</span>{<span class="synStatement">-f</span>}))
+	{
+		<span class="synStatement">open</span> <span class="synIdentifier">INFILE</span>,<span class="synConstant">&quot;&lt;</span><span class="synIdentifier">$inputArguments</span><span class="synConstant">{-f}&quot;</span> <span class="synStatement">or</span> <span class="synStatement">die</span> <span class="synConstant">&quot;Could not open input file </span><span class="synIdentifier">$inputArguments</span><span class="synConstant">{-f}.</span><span class="synSpecial">\n</span><span class="synConstant">&quot;</span>;
+	}
+	<span class="synStatement">else</span>
+	{
+		<span class="synStatement">die</span> <span class="synConstant">&quot;</span><span class="synIdentifier">$usageString</span><span class="synConstant">&quot;</span>;
+	}
+	
+	<span class="synStatement">if</span>(<span class="synStatement">defined</span>(<span class="synIdentifier">$inputArguments</span>{<span class="synStatement">-o</span>}))
+	{
+		<span class="synStatement">open</span> <span class="synIdentifier">OUTFILE</span>,<span class="synConstant">&quot;&gt;</span><span class="synIdentifier">$inputArguments</span><span class="synConstant">{-o}&quot;</span> <span class="synStatement">or</span> <span class="synStatement">die</span> <span class="synConstant">&quot;Could not open output file </span><span class="synIdentifier">$inputArguments</span><span class="synConstant">{-o}.</span><span class="synSpecial">\n</span><span class="synConstant">&quot;</span>;
+		<span class="synIdentifier">$writeToFile</span> = <span class="synConstant">1</span>;
+	}
+	
+	<span class="synStatement">while</span>(<span class="synIdentifier">$smiles</span> = <span class="synIdentifier">&lt;INFILE&gt;</span>)
+	{
+		<span class="synStatement">chomp</span> <span class="synIdentifier">$smiles</span>;
+		<span class="synIdentifier">$message</span> = <span class="synConstant">''</span>;
+		(<span class="synIdentifier">$psa</span>,<span class="synIdentifier">$message</span>) = <span class="synIdentifier">&amp;CalculatePSA</span>(<span class="synIdentifier">$smiles</span>);
+		<span class="synStatement">if</span>(<span class="synIdentifier">$writeToFile</span>)
+		{
+			<span class="synStatement">if</span>(<span class="synStatement">length</span>(<span class="synIdentifier">$message</span>) &gt; <span class="synConstant">0</span>)
+			{
+				<span class="synStatement">print</span> <span class="synIdentifier">OUTFILE</span> <span class="synConstant">&quot;</span><span class="synIdentifier">$smiles</span><span class="synConstant"> </span><span class="synIdentifier">$message</span><span class="synSpecial">\n</span><span class="synConstant">&quot;</span>;
+			}
+			<span class="synStatement">else</span>
+			{
+				<span class="synStatement">print</span> <span class="synIdentifier">OUTFILE</span> <span class="synConstant">&quot;</span><span class="synIdentifier">$smiles</span><span class="synSpecial">\t</span><span class="synIdentifier">$psa</span><span class="synSpecial">\n</span><span class="synConstant">&quot;</span>;
+			}
+		}
+		<span class="synStatement">else</span>
+		{
+			<span class="synStatement">if</span>(<span class="synStatement">length</span>(<span class="synIdentifier">$message</span>) &gt; <span class="synConstant">0</span>)
+			{
+				<span class="synStatement">print</span> <span class="synConstant">&quot;</span><span class="synIdentifier">$smiles</span><span class="synConstant"> </span><span class="synIdentifier">$message</span><span class="synSpecial">\n</span><span class="synConstant">&quot;</span>;
+			}
+			<span class="synStatement">else</span>
+			{
+				<span class="synStatement">print</span> <span class="synConstant">&quot;</span><span class="synIdentifier">$smiles</span><span class="synSpecial">\t</span><span class="synIdentifier">$psa</span><span class="synSpecial">\n</span><span class="synConstant">&quot;</span>;
+			}
+		}
+	}
+	<span class="synStatement">close</span> <span class="synIdentifier">INFILE</span>;
+	<span class="synStatement">if</span>(<span class="synIdentifier">$writeToFile</span>)
+	{
+		<span class="synStatement">close</span> <span class="synIdentifier">OUTFILE</span>;
+	}	
+}
+<span class="synStatement">elsif</span>(<span class="synIdentifier">$#ARGV</span> == <span class="synConstant">0</span>)
+{
+	<span class="synComment"># means we have a single smiles string to use</span>
+	
+	<span class="synIdentifier">$smiles</span> = <span class="synIdentifier">$ARGV</span>[<span class="synConstant">0</span>];
+	<span class="synStatement">chomp</span> <span class="synIdentifier">$smiles</span>;
+	(<span class="synIdentifier">$psa</span>,<span class="synIdentifier">$message</span>) = <span class="synIdentifier">&amp;CalculatePSA</span>(<span class="synIdentifier">$smiles</span>);
+	<span class="synStatement">if</span>(<span class="synStatement">length</span>(<span class="synIdentifier">$message</span>) &gt; <span class="synConstant">0</span>)
+	{
+		<span class="synStatement">print</span> <span class="synConstant">&quot;</span><span class="synIdentifier">$smiles</span><span class="synConstant"> </span><span class="synIdentifier">$message</span><span class="synSpecial">\n</span><span class="synConstant">&quot;</span>;
+	}
+	<span class="synStatement">else</span>
+	{
+		<span class="synStatement">print</span> <span class="synConstant">&quot;</span><span class="synIdentifier">$smiles</span><span class="synSpecial">\t</span><span class="synIdentifier">$psa</span><span class="synSpecial">\n</span><span class="synConstant">&quot;</span>;
+	}
+}
+<span class="synStatement">else</span>
+{
+	<span class="synIdentifier">$smiles</span> = <span class="synIdentifier">&lt;STDIN&gt;</span>;
+	<span class="synStatement">chomp</span> <span class="synIdentifier">$smiles</span>;
+	<span class="synStatement">while</span>(<span class="synStatement">length</span>(<span class="synIdentifier">$smiles</span>) &gt; <span class="synConstant">0</span>)
+	{
+		<span class="synIdentifier">$calculatedOne</span> = <span class="synConstant">1</span>;
+		(<span class="synIdentifier">$psa</span>,<span class="synIdentifier">$message</span>) = <span class="synIdentifier">&amp;CalculatePSA</span>(<span class="synIdentifier">$smiles</span>);
+		<span class="synStatement">if</span>(<span class="synStatement">length</span>(<span class="synIdentifier">$message</span>) &gt; <span class="synConstant">0</span>)
+		{
+			<span class="synStatement">print</span> <span class="synConstant">&quot;</span><span class="synIdentifier">$smiles</span><span class="synConstant"> </span><span class="synIdentifier">$message</span><span class="synSpecial">\n</span><span class="synConstant">&quot;</span>;
+		}
+		<span class="synStatement">else</span>
+		{
+			<span class="synStatement">print</span> <span class="synConstant">&quot;</span><span class="synIdentifier">$smiles</span><span class="synSpecial">\t</span><span class="synIdentifier">$psa</span><span class="synSpecial">\n</span><span class="synConstant">&quot;</span>;
+		}
+		<span class="synIdentifier">$smiles</span> = <span class="synIdentifier">&lt;STDIN&gt;</span>;
+		<span class="synStatement">chomp</span> <span class="synIdentifier">$smiles</span>;
+	}
+	<span class="synStatement">unless</span>(<span class="synIdentifier">$calculatedOne</span>)
+	{
+		<span class="synStatement">print</span> <span class="synConstant">&quot;</span><span class="synIdentifier">$usageString</span><span class="synConstant">&quot;</span>;
+	}
+}
+
+
+<span class="synComment">#################</span>
+                 <span class="synComment"># CalculatePSA</span>
+<span class="synComment">#################</span>
+
+<span class="synStatement">sub</span><span class="synIdentifier"> CalculatePSA</span>
+{
+	<span class="synStatement">my</span> (<span class="synIdentifier">$smiles</span>) = <span class="synIdentifier">@_</span>;
+		
+	<span class="synStatement">my</span> <span class="synIdentifier">$atomic_number_nitrogen</span> = <span class="synConstant">7</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$atomic_number_oxygen</span> = <span class="synConstant">8</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$max_ring_count</span> = <span class="synConstant">3</span>;
+	
+	<span class="synStatement">my</span> <span class="synIdentifier">$psa</span> = <span class="synConstant">0</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$message</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$molecule</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$atoms</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$rings</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$bonds</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$oneAtom</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$oneBond</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$atomicNumber</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$isIn3Ring</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$hydrogenCount</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$formalCharge</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$isAromatic</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$oneRing</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$ringAtoms</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$oneRingAtom</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$resetRings</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$numberOfNeighbors</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$singleBondCount</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$doubleBondCount</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$tripleBondCount</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$aromaticBondCount</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$bondType</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$polarity</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$deAllocated</span>;
+	
+	<span class="synStatement">my</span> <span class="synIdentifier">$NTriple</span> = <span class="synConstant">23.79</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$NHDouble</span> = <span class="synConstant">23.85</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$NH2Single</span> = <span class="synConstant">26.02</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$NH2PlusDouble</span> = <span class="synConstant">25.59</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$NH3PlusSingle</span> = <span class="synConstant">27.64</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$NSingleDouble</span> = <span class="synConstant">12.36</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$NDoubleTriple</span> = <span class="synConstant">13.60</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$NHSingleSingle</span> = <span class="synConstant">12.03</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$NHSingleSingle3Ring</span> = <span class="synConstant">21.94</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$NPlusSingleTriple</span> = <span class="synConstant">4.36</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$NHPlusSingleDouble</span> = <span class="synConstant">13.97</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$NH2PlusSingleSingle</span> = <span class="synConstant">16.61</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$nAromaticAromatic</span> = <span class="synConstant">12.89</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$nHAromaticAromatic</span> = <span class="synConstant">15.79</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$nHPlusAromaticAromatic</span> = <span class="synConstant">14.14</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$NSingleSingleSingle</span> = <span class="synConstant">3.24</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$NSingleSingleSingle3Ring</span> = <span class="synConstant">3.01</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$NSingleDoubleDouble</span> = <span class="synConstant">11.68</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$NPlusSingleSingleDouble</span> = <span class="synConstant">3.01</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$NPlusSingleSingleSingle</span> = <span class="synConstant">4.44</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$nAromaticAromaticAromatic</span> = <span class="synConstant">4.41</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$nSingleAromaticAromatic</span> = <span class="synConstant">4.93</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$nDoubleAromaticAromatic</span> = <span class="synConstant">8.39</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$nPlusAromaticAromaticAromatic</span> = <span class="synConstant">4.10</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$nPlusSingleAromaticAromatic</span> = <span class="synConstant">3.88</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$NPlusSingleSingleSingleSingle</span> = <span class="synConstant">0.00</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$nonStandardNBasePolarity</span> = <span class="synConstant">30.5</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$neighborNBasePolarity</span> = <span class="synConstant">8.2</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$hydrogenBasePolarity</span> = <span class="synConstant">1.5</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$ODouble</span> = <span class="synConstant">17.07</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$OHSingle</span> = <span class="synConstant">20.23</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$OMinusSingle</span> = <span class="synConstant">23.06</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$OSingleSingle</span> = <span class="synConstant">9.23</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$OSingleSingle3Ring</span> = <span class="synConstant">12.53</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$oAromaticAromatic</span> = <span class="synConstant">13.14</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$nonStandardOBasePolarity</span> = <span class="synConstant">28.5</span>;
+	<span class="synStatement">my</span> <span class="synIdentifier">$neighborOBasePolarity</span> = <span class="synConstant">8.6</span>;
+	
+	
+    <span class="synComment"># KFK: replaced the following line with the next two lines:</span>
+	<span class="synComment"># $molecule = dt_smilin($smiles);</span>
+    <span class="synIdentifier">$molecule</span> = Chemistry::Mol-&gt;parse(<span class="synIdentifier">$smiles</span>, <span class="synConstant">format </span>=&gt; <span class="synConstant">'smiles'</span>);
+    aromatize_mol(<span class="synIdentifier">$molecule</span>); <span class="synComment"># &lt;--- AROMATIZE!!!</span>
+
+	<span class="synStatement">unless</span>(<span class="synStatement">defined</span>(<span class="synIdentifier">$molecule</span>))
+	{
+		<span class="synIdentifier">$message</span> = <span class="synConstant">&quot;SMILES string invalid&quot;</span>;
+		<span class="synStatement">return</span> (<span class="synIdentifier">$psa</span>,<span class="synIdentifier">$message</span>);
+	}
+
+    <span class="synComment"># KFK: replaced the next two lines with the following line:</span>
+	<span class="synComment">#$atoms = dt_stream($molecule,TYP_ATOM);</span>
+	<span class="synComment">#$rings = dt_stream($molecule,TYP_CYCLE);</span>
+	
+
+    <span class="synComment"># KFK: added the next block of code to recplace the following block:</span>
+    <span class="synStatement">my</span> <span class="synIdentifier">@atoms</span> = <span class="synIdentifier">$molecule</span>-&gt;atoms;
+
+    <span class="synStatement">foreach</span> (<span class="synIdentifier">@atoms</span>) {
+
+      <span class="synIdentifier">$oneAtom</span>       = <span class="synIdentifier">$_</span>;
+      <span class="synIdentifier">$oneAtom</span>-&gt;collapse_hydrogens;
+      <span class="synIdentifier">$atomicNumber</span>  = <span class="synIdentifier">$oneAtom</span>-&gt;Z;
+      
+      <span class="synStatement">if</span>((<span class="synIdentifier">$atomicNumber</span> == <span class="synIdentifier">$atomic_number_nitrogen</span>) || (<span class="synIdentifier">$atomicNumber</span> == <span class="synIdentifier">$atomic_number_oxygen</span>)) {
+      
+      <span class="synIdentifier">$hydrogenCount</span> = <span class="synIdentifier">$oneAtom</span>-&gt;implicit_hydrogens;
+      <span class="synIdentifier">$formalCharge</span>  = <span class="synIdentifier">$oneAtom</span>-&gt;formal_charge;
+      <span class="synStatement">if</span> (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">&quot;&quot;</span>) { <span class="synIdentifier">$formalCharge</span> = <span class="synConstant">0</span>; }
+      <span class="synIdentifier">$isAromatic</span>    = <span class="synIdentifier">$oneAtom</span>-&gt;aromatic;
+      <span class="synStatement">if</span> (find_ring(<span class="synIdentifier">$oneAtom</span>, <span class="synConstant">size </span>=&gt; <span class="synConstant">'3'</span>) == <span class="synConstant">&quot;&quot;</span>) {
+        <span class="synIdentifier">$isIn3Ring</span> = <span class="synConstant">0</span>;
+      } <span class="synStatement">else</span> {
+        <span class="synIdentifier">$isIn3Ring</span> = <span class="synConstant">1</span>;
+      }
+      <span class="synIdentifier">$numberOfNeighbors</span> = <span class="synIdentifier">$oneAtom</span>-&gt;neighbors(<span class="synIdentifier">$oneAtom</span>);
+      <span class="synIdentifier">$singleBondCount</span>   = <span class="synConstant">0</span>;
+      <span class="synIdentifier">$doubleBondCount</span>   = <span class="synConstant">0</span>;
+      <span class="synIdentifier">$tripleBondCount</span>   = <span class="synConstant">0</span>;
+      <span class="synIdentifier">$aromaticBondCount</span> = <span class="synConstant">0</span>;
+      <span class="synStatement">my</span> <span class="synIdentifier">@bonds</span> = <span class="synIdentifier">$oneAtom</span>-&gt;bonds(<span class="synIdentifier">$oneAtom</span>);
+      <span class="synStatement">foreach</span> (<span class="synIdentifier">@bonds</span>) {
+        <span class="synIdentifier">$oneBond</span> = <span class="synIdentifier">$_</span>;
+        <span class="synStatement">my</span> <span class="synIdentifier">$bo</span> = <span class="synIdentifier">$oneBond</span>-&gt;order;
+        <span class="synStatement">if</span> (<span class="synIdentifier">$bo</span> == <span class="synConstant">1</span>) {  <span class="synIdentifier">$singleBondCount</span>++; }
+        <span class="synStatement">if</span> (<span class="synIdentifier">$bo</span> == <span class="synConstant">2</span>) {  <span class="synIdentifier">$doubleBondCount</span>++; }
+        <span class="synStatement">if</span> (<span class="synIdentifier">$bo</span> == <span class="synConstant">3</span>) {  <span class="synIdentifier">$tripleBondCount</span>++; }
+        <span class="synStatement">if</span> (<span class="synIdentifier">$oneBond</span>-&gt;aromatic) {  <span class="synIdentifier">$aromaticBondCount</span>++; }
+      }
+	
+<span class="synComment">#	while($oneAtom = dt_next($atoms))</span>
+<span class="synComment">#	{</span>
+<span class="synComment">#		$atomicNumber = dt_number($oneAtom);</span>
+<span class="synComment">#		if(($atomicNumber == $atomic_number_nitrogen) || ($atomicNumber == $atomic_number_oxygen))</span>
+<span class="synComment">#		{</span>
+<span class="synComment">#			$hydrogenCount = dt_hcount($oneAtom);</span>
+<span class="synComment">#			$formalCharge = dt_charge($oneAtom);</span>
+<span class="synComment">#			$isAromatic = dt_aromatic($oneAtom);</span>
+<span class="synComment">#			$isIn3Ring = 0;</span>
+<span class="synComment">#			RINGCHECK:</span>
+<span class="synComment">#			while($oneRing = dt_next($rings))</span>
+<span class="synComment">#			{</span>
+<span class="synComment">#				if(dt_count($oneRing,TYP_ATOM) &gt; $max_ring_count)</span>
+<span class="synComment">#				{</span>
+<span class="synComment">#					next RINGCHECK;</span>
+<span class="synComment">#				}</span>
+<span class="synComment">#				$ringAtoms = dt_stream($oneRing,TYP_ATOM);</span>
+<span class="synComment">#				while($oneRingAtom = dt_next($ringAtoms))</span>
+<span class="synComment">#				{</span>
+<span class="synComment">#					if($oneAtom == $oneRingAtom)</span>
+<span class="synComment">#					{</span>
+<span class="synComment">#						$isIn3Ring = 1;</span>
+<span class="synComment">#						last RINGCHECK;</span>
+<span class="synComment">#					}</span>
+<span class="synComment">#				}</span>
+<span class="synComment">#			}</span>
+<span class="synComment">#			$resetRings = dt_reset($rings);</span>
+<span class="synComment">#			</span>
+<span class="synComment">#			$numberOfNeighbors = 0;</span>
+<span class="synComment">#			$singleBondCount = 0;</span>
+<span class="synComment">#			$doubleBondCount = 0;</span>
+<span class="synComment">#			$tripleBondCount = 0;</span>
+<span class="synComment">#			$aromaticBondCount = 0;</span>
+<span class="synComment">#			$bonds = dt_stream($oneAtom,TYP_BOND);</span>
+<span class="synComment">#			while($oneBond = dt_next($bonds))</span>
+<span class="synComment">#			{</span>
+<span class="synComment">#				$numberOfNeighbors++;</span>
+<span class="synComment">#				$bondType = dt_bondtype($oneBond);</span>
+<span class="synComment">#				if($bondType == DX_BTY_SINGLE)</span>
+<span class="synComment">#				{</span>
+<span class="synComment">#					$singleBondCount++;</span>
+<span class="synComment">#				}</span>
+<span class="synComment">#				elsif($bondType == DX_BTY_DOUBLE)</span>
+<span class="synComment">#				{</span>
+<span class="synComment">#					$doubleBondCount++;</span>
+<span class="synComment">#				}</span>
+<span class="synComment">#				elsif($bondType == DX_BTY_TRIPLE)</span>
+<span class="synComment">#				{</span>
+<span class="synComment">#					$tripleBondCount++;</span>
+<span class="synComment">#				}</span>
+<span class="synComment">#				elsif($bondType == DX_BTY_AROMAT)</span>
+<span class="synComment">#				{</span>
+<span class="synComment">#					$aromaticBondCount++;</span>
+<span class="synComment">#				}</span>
+<span class="synComment">#			}</span>
+<span class="synComment">#			</span>
+			<span class="synIdentifier">$polarity</span> = <span class="synConstant">-1</span>;
+			<span class="synStatement">if</span>(<span class="synIdentifier">$atomicNumber</span> == <span class="synIdentifier">$atomic_number_nitrogen</span>)
+			{
+				<span class="synStatement">if</span>(<span class="synIdentifier">$numberOfNeighbors</span> == <span class="synConstant">1</span>)
+				{
+					<span class="synStatement">if</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$tripleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>))
+					{
+						<span class="synComment"># N#</span>
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$NTriple</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$doubleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>))
+					{
+						<span class="synComment"># [NH]=</span>
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$NHDouble</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">2</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>))
+					{
+						<span class="synComment"># [NH2]-</span>
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$NH2Single</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">2</span>) &amp;&amp; (<span class="synIdentifier">$doubleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">1</span>))
+					{
+						<span class="synComment"># [NH2+]=</span>
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$NH2PlusDouble</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">3</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">1</span>))
+					{
+						<span class="synComment"># [NH3+]-</span>
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$NH3PlusSingle</span>;
+					}
+				}
+				<span class="synStatement">elsif</span>(<span class="synIdentifier">$numberOfNeighbors</span> == <span class="synConstant">2</span>)
+				{
+					<span class="synStatement">if</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$doubleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$NSingleDouble</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$tripleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$doubleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$NDoubleTriple</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">2</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>) &amp;&amp; !(<span class="synIdentifier">$isIn3Ring</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$NHSingleSingle</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">2</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$isIn3Ring</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$NHSingleSingle3Ring</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$tripleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">1</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$NPlusSingleTriple</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$doubleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">1</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$NHPlusSingleDouble</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">2</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">2</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">1</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$NH2PlusSingleSingle</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$aromaticBondCount</span> == <span class="synConstant">2</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$nAromaticAromatic</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$aromaticBondCount</span> == <span class="synConstant">2</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$nHAromaticAromatic</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$aromaticBondCount</span> == <span class="synConstant">2</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">1</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$nHPlusAromaticAromatic</span>;
+					}
+				}
+				<span class="synStatement">elsif</span>(<span class="synIdentifier">$numberOfNeighbors</span> == <span class="synConstant">3</span>)
+				{
+					<span class="synStatement">if</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">3</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>) &amp;&amp; !(<span class="synIdentifier">$isIn3Ring</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$NSingleSingleSingle</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">3</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$isIn3Ring</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$NSingleSingleSingle3Ring</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$doubleBondCount</span> == <span class="synConstant">2</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$NSingleDoubleDouble</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">2</span>) &amp;&amp; (<span class="synIdentifier">$doubleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">1</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$NPlusSingleSingleDouble</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">3</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">1</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$NPlusSingleSingleSingle</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$aromaticBondCount</span> == <span class="synConstant">3</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$nAromaticAromaticAromatic</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$aromaticBondCount</span> == <span class="synConstant">2</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$nSingleAromaticAromatic</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$aromaticBondCount</span> == <span class="synConstant">3</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">1</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$nPlusAromaticAromaticAromatic</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$aromaticBondCount</span> == <span class="synConstant">2</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">1</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$nPlusSingleAromaticAromatic</span>;
+					}
+				}
+				<span class="synStatement">elsif</span>(<span class="synIdentifier">$numberOfNeighbors</span> == <span class="synConstant">4</span>)
+				{
+					<span class="synStatement">if</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">4</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">1</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$NPlusSingleSingleSingleSingle</span>;
+					}
+				}
+				
+				<span class="synStatement">if</span>(<span class="synIdentifier">$polarity</span> &lt; <span class="synConstant">0</span>) <span class="synComment"># for an N with non-standard valence</span>
+				{
+					<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$nonStandardNBasePolarity</span> - (<span class="synIdentifier">$numberOfNeighbors</span> * <span class="synIdentifier">$neighborNBasePolarity</span>) + (<span class="synIdentifier">$hydrogenCount</span> * <span class="synIdentifier">$hydrogenBasePolarity</span>);
+				}
+				
+				<span class="synStatement">if</span>(<span class="synIdentifier">$polarity</span> &lt; <span class="synConstant">0</span>)
+				{
+					<span class="synIdentifier">$polarity</span> = <span class="synConstant">0</span>;
+				}
+			}
+			<span class="synStatement">elsif</span>(<span class="synIdentifier">$atomicNumber</span> == <span class="synIdentifier">$atomic_number_oxygen</span>)
+			{
+				<span class="synStatement">if</span>(<span class="synIdentifier">$numberOfNeighbors</span> == <span class="synConstant">1</span>)
+				{
+					<span class="synStatement">if</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$doubleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$ODouble</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$OHSingle</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">1</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">-1</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$OMinusSingle</span>;
+					}
+				}
+				<span class="synStatement">elsif</span>(<span class="synIdentifier">$numberOfNeighbors</span> == <span class="synConstant">2</span>)
+				{
+					<span class="synStatement">if</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">2</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>) &amp;&amp; !(<span class="synIdentifier">$isIn3Ring</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$OSingleSingle</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$singleBondCount</span> == <span class="synConstant">2</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$isIn3Ring</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$OSingleSingle3Ring</span>;
+					}
+					<span class="synStatement">elsif</span>((<span class="synIdentifier">$hydrogenCount</span> == <span class="synConstant">0</span>) &amp;&amp; (<span class="synIdentifier">$aromaticBondCount</span> == <span class="synConstant">2</span>) &amp;&amp; (<span class="synIdentifier">$formalCharge</span> == <span class="synConstant">0</span>))
+					{
+						<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$oAromaticAromatic</span>;
+					}
+				}
+				
+				<span class="synStatement">if</span>(<span class="synIdentifier">$polarity</span> &lt; <span class="synConstant">0</span>) <span class="synComment"># O with non standard polarity</span>
+				{
+					<span class="synIdentifier">$polarity</span> = <span class="synIdentifier">$nonStandardOBasePolarity</span> - (<span class="synIdentifier">$numberOfNeighbors</span> * <span class="synIdentifier">$neighborOBasePolarity</span>) + (<span class="synIdentifier">$hydrogenCount</span> * <span class="synIdentifier">$hydrogenBasePolarity</span>);
+				}
+				
+				<span class="synStatement">if</span>(<span class="synIdentifier">$polarity</span> &lt; <span class="synConstant">0</span>)
+				{
+					<span class="synIdentifier">$polarity</span> = <span class="synConstant">0</span>;
+				}
+			}
+			
+			<span class="synIdentifier">$psa</span> += <span class="synIdentifier">$polarity</span>;
+		}
+	}
+	
+
+<span class="synComment"># KFK: commented out the following deallocation calls which are no-longer needed:</span>
+<span class="synComment">#	$deAllocated = dt_dealloc($atoms);</span>
+<span class="synComment">#	$deAllocated = dt_dealloc($bonds);</span>
+<span class="synComment">#	$deAllocated = dt_dealloc($rings);</span>
+<span class="synComment">#	$deAllocated = dt_dealloc($oneAtom);</span>
+<span class="synComment">#	$deAllocated = dt_dealloc($oneBond);</span>
+<span class="synComment">#	$deAllocated = dt_dealloc($oneRing);</span>
+<span class="synComment">#	$deAllocated = dt_dealloc($ringAtoms);</span>
+<span class="synComment">#	$deAllocated = dt_dealloc($oneRingAtom);</span>
+<span class="synComment">#	$deAllocated = dt_dealloc($molecule);</span>
+
+	<span class="synStatement">return</span> <span class="synIdentifier">$psa</span>,<span class="synIdentifier">$message</span>;
+}
+
+<span class="synComment">#################</span>
+                 <span class="synComment">#</span>
+<span class="synComment">#################</span>
+
+
+</pre>
+
+</div>
+
+</body>
+</html>

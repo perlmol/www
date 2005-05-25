@@ -1,0 +1,107 @@
+[% PROCESS head title="Example: Molecular grep" %]
+
+[% INCLUDE nav.html %]
+<!-- main content -->
+<div class="main">
+<h1>PerlMol - Example: Molecular grep</h1> 
+
+
+<p>molgrep example
+<p>Added by Ivan Tubert-Brohman, itub@cpan.org
+
+<p>usage: ./molgrep.pl &lt;SMARTS pattern&gt; &lt;file(s)...&gt;
+
+<p>prints to STDOUT a table with the filenames, names, formulas, and SMILES
+strings for the matching molecules in the files given in the command line
+
+<h2>Files</h2>
+
+<ul>
+<li><a href="molgrep.pl">molgrep.pl</a>   - the program
+<li><a href="output.txt">output.txt</a>   - the result of running ./molgrep.pl CCC *.smi *.pdb *.mol
+</ul>
+
+
+<p>Some files with molecules, borrowed from the other examples:
+<ul>
+<li><a href="acid_chlorides.smi">acid_chlorides.smi</a>
+<li><a href="ala.mol">ala.mol</a>
+<li><a href="amines.smi">amines.smi</a>
+<li><a href="example.pdb">example.pdb</a>
+<li><a href="gly.mol">gly.mol</a>
+<li><a href="input.smi">input.smi</a>
+<li><a href="lava.mol">lava.mol</a>
+<li><a href="leu.mol">leu.mol</a>
+<li><a href="output.smi">output.smi</a>
+<li><a href="val.mol">val.mol</a>
+</ul>
+
+
+
+<h2>Code</h2>
+<pre>
+<span class="synPreProc">#!/home/ivan/bin/perl</span>
+
+<span class="synComment"># usage: ./molgrep.pl &lt;SMARTS pattern&gt; &lt;file(s)...&gt;</span>
+
+<span class="synComment"># prints to STDOUT a table with the filenames, names, formulas, and SMILES</span>
+<span class="synComment"># strings for the matching molecules in the files given in the command line</span>
+
+<span class="synStatement">use strict</span>;
+<span class="synStatement">use warnings</span>;
+
+<span class="synComment"># use all available file types</span>
+<span class="synStatement">use </span>Chemistry::File <span class="synConstant">':auto'</span>;
+
+<span class="synComment"># for molecules with no explicit bonds</span>
+<span class="synStatement">use </span>Chemistry::Bond::Find <span class="synConstant">'find_bonds'</span>;
+
+<span class="synComment"># so that ring and aromatic SMARTS work</span>
+<span class="synStatement">use </span>Chemistry::Ring <span class="synConstant">'aromatize_mol'</span>;
+
+<span class="synComment"># make sure we have enough command-line arguments</span>
+<span class="synStatement">unless</span> (<span class="synIdentifier">@ARGV</span> &gt;= <span class="synConstant">2</span>) {
+    <span class="synStatement">print</span> <span class="synConstant">&quot;</span><span class="synIdentifier">$0</span><span class="synConstant"> &lt;SMARTS pattern&gt; &lt;file(s)...&gt;</span><span class="synSpecial">\n</span><span class="synConstant">&quot;</span>;
+    <span class="synStatement">exit</span>;
+}
+
+<span class="synComment"># create the pattern object</span>
+<span class="synStatement">my</span> <span class="synIdentifier">$patt_str</span> = <span class="synStatement">shift</span> <span class="synIdentifier">@ARGV</span>;
+<span class="synStatement">my</span> <span class="synIdentifier">$patt</span> = Chemistry::Pattern-&gt;parse(<span class="synIdentifier">$patt_str</span>, <span class="synConstant">format </span>=&gt; <span class="synConstant">'smarts'</span>);
+
+<span class="synComment"># print the header</span>
+<span class="synStatement">print</span> <span class="synConstant">&quot;Filename</span><span class="synSpecial">\t</span><span class="synConstant">Name</span><span class="synSpecial">\t</span><span class="synConstant">Formula</span><span class="synSpecial">\t</span><span class="synConstant">SMILES</span><span class="synSpecial">\n</span><span class="synConstant">&quot;</span>;
+
+<span class="synComment"># loop over the filenames</span>
+<span class="synStatement">for</span> <span class="synStatement">my</span> <span class="synIdentifier">$filename</span> (<span class="synIdentifier">@ARGV</span>) {
+
+    <span class="synComment"># read the file. Note that there can be multiple molecules in one file</span>
+    <span class="synStatement">my</span> <span class="synIdentifier">@mols</span> = Chemistry::Mol-&gt;<span class="synStatement">read</span>(<span class="synIdentifier">$filename</span>);
+
+    <span class="synComment"># loop over the molecules from this file</span>
+    <span class="synStatement">for</span> <span class="synStatement">my</span> <span class="synIdentifier">$mol</span> (<span class="synIdentifier">@mols</span>) {
+
+        <span class="synComment"># if the molecule doesn't have any bonds, because it came from an XYZ</span>
+        <span class="synComment"># file or something like that, find them out from the 3d coordinates.</span>
+        find_bonds(<span class="synIdentifier">$mol</span>, <span class="synConstant">orders </span>=&gt; <span class="synConstant">1</span>) <span class="synStatement">unless</span> <span class="synIdentifier">$mol</span>-&gt;bonds;
+
+        <span class="synComment"># so that ring and aromatic SMARTS work</span>
+        aromatize_mol(<span class="synIdentifier">$mol</span>);
+
+        <span class="synComment"># check if molecule matches</span>
+        <span class="synStatement">if</span> (<span class="synIdentifier">$patt</span>-&gt;match(<span class="synIdentifier">$mol</span>)) {
+            <span class="synStatement">no warnings</span> <span class="synConstant">qw(uninitialized)</span>; <span class="synComment"># in case $mol has no name</span>
+
+            <span class="synComment"># print the molecular information. In $mol-&gt;sprintf,</span>
+            <span class="synComment"># %n is the name, %f the formula, and %S the canonical SMILES</span>
+            <span class="synStatement">print</span> <span class="synConstant">&quot;</span><span class="synIdentifier">$filename</span><span class="synSpecial">\t</span><span class="synConstant">&quot;</span> . <span class="synIdentifier">$mol</span>-&gt;<span class="synStatement">sprintf</span>(<span class="synConstant">&quot;</span><span class="synIdentifier">%n</span><span class="synSpecial">\t</span><span class="synIdentifier">%f</span><span class="synSpecial">\t</span><span class="synIdentifier">%S</span><span class="synSpecial">\n</span><span class="synConstant">&quot;</span>);
+        }
+    }
+}
+
+</pre>
+
+</div>
+
+</body>
+</html>

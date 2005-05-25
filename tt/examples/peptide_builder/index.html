@@ -1,0 +1,221 @@
+[% PROCESS head title="Example: Peptide builder" %]
+
+[% INCLUDE nav.html %]
+<!-- main content -->
+<div class="main">
+<h1>PerlMol - Example: Peptide builder</h1> 
+
+
+<p>Peptide builder sample script
+<p>By Ivan Tubert-Brohman, upon a suggestion by Ramón Garduño-Vázquez
+
+<p>Builds a 3D structure for a peptide given a sequence (the structure is
+essentialy linear; with some minor tweaks it could solve the protein-folding 
+problem ;-)
+
+<p>It uses mdl molfiles. I know that for peptides PDB would make more sense, but
+for some reason I already had a few aminoacid structures in my drive as MDL
+molfiles and was too lazy to deal with PDB. Some things would have to be 
+changed for it to generate a proper PDB file with the residue sequence numbers
+and such.
+
+<pre>
+# usage: ./pep.pl &lt;SEQUENCE&gt;
+# prints an mdl molfile to stdout
+
+# curent version only supports the residues A,G,L,V
+</pre>
+
+<h2>Files</h2>
+
+<ul>
+<li><a href="peptide_builder.pl">peptide_builder.pl</a>  - the program
+<li><a href="ala.mol">ala.mol</a>             - alanine with 3D coordinates
+<li><a href="gly.mol">gly.mol</a>             - glycine with 3D coordinates
+<li><a href="leu.mol">leu.mol</a>             - leucine with 3D coordinates
+<li><a href="val.mol">val.mol</a>             - valine with 3D coordinates
+<li><a href="lava.mol">lava.mol</a>            - expected program output for ./peptide_builder LAVA
+</ul>
+
+
+
+<h2>Code</h2>
+<pre>
+<span class="synPreProc">#!/home/ivan/bin/perl</span>
+<span class="synComment"># usage: ./pep.pl &lt;SEQUENCE&gt;</span>
+<span class="synComment"># prints an mdl molfile to stdout</span>
+
+<span class="synComment"># curent version only supports the residues A,G,L,V</span>
+<span class="synComment"># the residues are assumed to be in the files listed below in %files,</span>
+<span class="synComment"># which must have the atoms N, CA, and C as the first three atoms in the </span>
+<span class="synComment"># file</span>
+
+<span class="synStatement">use strict</span>;
+<span class="synStatement">use warnings</span>;
+<span class="synComment">#use diagnostics;</span>
+
+<span class="synStatement">use </span>Chemistry::File::MDLMol;
+<span class="synStatement">use </span>Chemistry::File::SMARTS;
+<span class="synStatement">use </span>Chemistry::InternalCoords::Builder <span class="synConstant">qw(build_zmat)</span>;
+
+{
+    <span class="synComment"># the files with the template aminoacids (3D coords)</span>
+    <span class="synStatement">my</span> <span class="synIdentifier">%files</span> = (
+        <span class="synConstant">A </span>=&gt; <span class="synConstant">'ala.mol'</span>,
+        <span class="synConstant">V </span>=&gt; <span class="synConstant">'val.mol'</span>,
+        <span class="synConstant">G </span>=&gt; <span class="synConstant">'gly.mol'</span>,
+        <span class="synConstant">L </span>=&gt; <span class="synConstant">'leu.mol'</span>,
+    );
+
+    <span class="synComment"># This defines the essential part of an aminoacid</span>
+    <span class="synStatement">my</span> <span class="synIdentifier">$patt</span> = Chemistry::Pattern-&gt;parse(<span class="synConstant">'C((=O)CN([C,H])[H])O[H]'</span>, 
+        <span class="synConstant">format </span>=&gt; <span class="synConstant">'smarts'</span>);
+
+    <span class="synStatement">my</span> <span class="synIdentifier">%aa</span>;
+
+    <span class="synStatement">my</span> (<span class="synIdentifier">$c</span>, <span class="synIdentifier">$o</span>, <span class="synIdentifier">$ca</span>, <span class="synIdentifier">$n</span>, <span class="synIdentifier">$hn</span>);
+
+    <span class="synComment"># return a molecule object from an aminoacid given its one-letter code</span>
+<span class="synIdentifier">    </span><span class="synStatement">sub</span><span class="synIdentifier"> amino_acid </span>{
+        <span class="synStatement">my</span> (<span class="synIdentifier">$code</span>) = <span class="synIdentifier">@_</span>;
+        <span class="synStatement">return</span> <span class="synIdentifier">$aa</span>{<span class="synIdentifier">$code</span>} <span class="synStatement">if</span> <span class="synIdentifier">$aa</span>{<span class="synIdentifier">$code</span>};
+        <span class="synStatement">my</span> <span class="synIdentifier">$file</span> = <span class="synIdentifier">$files</span>{<span class="synIdentifier">$code</span>} <span class="synStatement">or</span> <span class="synStatement">die</span> <span class="synConstant">&quot;unknown code '</span><span class="synIdentifier">$code</span><span class="synConstant">', stopping &quot;</span>;
+        <span class="synIdentifier">$aa</span>{<span class="synIdentifier">$code</span>} = Chemistry::Mol-&gt;<span class="synStatement">read</span>(<span class="synIdentifier">$file</span>);
+    }
+
+    <span class="synComment"># start a new chain from a residue (a Chemistry::Mol object).</span>
+    <span class="synComment"># returns the new chain (a Chemistry::Mol object)</span>
+<span class="synIdentifier">    </span><span class="synStatement">sub</span><span class="synIdentifier"> start_chain </span>{
+        <span class="synStatement">my</span> (<span class="synIdentifier">$res</span>) = <span class="synIdentifier">@_</span>;
+
+        <span class="synComment"># clone because we don't want to destroy the template</span>
+        <span class="synStatement">my</span> <span class="synIdentifier">$chain</span> = safe_clone(<span class="synIdentifier">$res</span>);
+
+        <span class="synComment"># find out which atom is which</span>
+        <span class="synIdentifier">$patt</span>-&gt;match(<span class="synIdentifier">$chain</span>) <span class="synStatement">or</span> <span class="synStatement">die</span> <span class="synConstant">&quot;didn't match, stopping &quot;</span>;
+        <span class="synStatement">my</span> (<span class="synIdentifier">$oh</span>, <span class="synIdentifier">$ho</span>, <span class="synIdentifier">$hnb</span>);
+        (<span class="synIdentifier">$c</span>, <span class="synIdentifier">$o</span>, <span class="synIdentifier">$ca</span>, <span class="synIdentifier">$n</span>, <span class="synIdentifier">$hn</span>, <span class="synIdentifier">$hnb</span>, <span class="synIdentifier">$oh</span>, <span class="synIdentifier">$ho</span>) = <span class="synIdentifier">$patt</span>-&gt;atom_map;
+
+        <span class="synComment"># chop off the carboxyl OH</span>
+        <span class="synIdentifier">$oh</span>-&gt;<span class="synStatement">delete</span>; <span class="synIdentifier">$ho</span>-&gt;<span class="synStatement">delete</span>;
+
+        <span class="synComment"># generate internal coordinates. </span>
+        build_zmat(<span class="synIdentifier">$chain</span>, <span class="synConstant">bfs </span>=&gt; <span class="synConstant">0</span>);
+        <span class="synIdentifier">$chain</span>;
+    }
+
+    <span class="synComment"># add a new residue (a Chemistry::Mol object) to a chain</span>
+<span class="synIdentifier">    </span><span class="synStatement">sub</span><span class="synIdentifier"> add_residue </span>{
+        <span class="synStatement">my</span> (<span class="synIdentifier">$chain</span>, <span class="synIdentifier">$res</span>) = <span class="synIdentifier">@_</span>;
+
+        <span class="synComment"># clone because we don't want to destroy the template</span>
+        <span class="synIdentifier">$res</span> = safe_clone(<span class="synIdentifier">$res</span>);
+
+        <span class="synComment"># find out which atom is which</span>
+        <span class="synIdentifier">$patt</span>-&gt;match(<span class="synIdentifier">$res</span>) <span class="synStatement">or</span> <span class="synStatement">die</span> <span class="synConstant">&quot;didn't match, stopping &quot;</span>;
+        <span class="synStatement">my</span> <span class="synIdentifier">@map</span> = <span class="synIdentifier">$patt</span>-&gt;atom_map;
+
+        <span class="synComment"># delete the hydroxyl and an HN atom</span>
+        <span class="synIdentifier">$_</span>-&gt;<span class="synStatement">delete</span> <span class="synStatement">for</span> <span class="synStatement">splice</span> <span class="synIdentifier">@map</span>, <span class="synConstant">5</span>;
+
+        <span class="synComment"># generate internal coordinates. </span>
+        <span class="synComment"># The bfs =&gt; 0 is needed to make sure</span>
+        <span class="synComment"># that the first three atoms are N, CA, and C, so that we can use </span>
+        <span class="synComment"># them reliably for positioning the new residue with respect to</span>
+        <span class="synComment"># the previous one</span>
+        build_zmat(<span class="synIdentifier">$res</span>, <span class="synConstant">bfs </span>=&gt; <span class="synConstant">0</span>);
+
+        <span class="synComment"># add the new residue</span>
+        <span class="synIdentifier">$chain</span>-&gt;combine(<span class="synIdentifier">$res</span>);
+
+        <span class="synComment"># since combine clones $res, we want to find the atoms of interest</span>
+        <span class="synComment"># in the new part of the chain, by &quot;translating&quot; the atom_map</span>
+        <span class="synStatement">my</span> (<span class="synIdentifier">$c2</span>, <span class="synIdentifier">$o2</span>, <span class="synIdentifier">$ca2</span>, <span class="synIdentifier">$n2</span>, <span class="synIdentifier">$hn2</span>) = 
+            <span class="synStatement">map</span> { <span class="synIdentifier">$chain</span>-&gt;by_id(<span class="synIdentifier">$_</span>-&gt;id) } <span class="synIdentifier">@map</span>;
+
+        <span class="synComment"># create the peptide bond</span>
+        <span class="synIdentifier">$chain</span>-&gt;new_bond(<span class="synConstant">atoms </span>=&gt; [<span class="synIdentifier">$n2</span>, <span class="synIdentifier">$c</span>], <span class="synConstant">order </span>=&gt; <span class="synConstant">1</span>);
+
+        <span class="synComment"># add some roughly reasonable internal coordinates to position the</span>
+        <span class="synComment"># new residue</span>
+        <span class="synIdentifier">$n2</span> -&gt;internal_coords(<span class="synIdentifier">$c</span>, <span class="synConstant">1.5</span>, <span class="synIdentifier">$ca</span>, <span class="synConstant">120</span>, <span class="synIdentifier">$o</span>, <span class="synConstant">180</span>);
+        <span class="synIdentifier">$ca2</span>-&gt;internal_coords(<span class="synIdentifier">$n2</span>, <span class="synConstant">1.5</span>, <span class="synIdentifier">$c</span>, <span class="synConstant">120</span>, <span class="synIdentifier">$ca</span>, <span class="synConstant">180</span>);
+        <span class="synIdentifier">$c2</span> -&gt;internal_coords(<span class="synIdentifier">$ca2</span>, <span class="synConstant">1.5</span>, <span class="synIdentifier">$n2</span>, <span class="synConstant">120</span>, <span class="synIdentifier">$c</span>, <span class="synConstant">180</span>);
+
+        <span class="synComment"># make sure that the N is planar</span>
+        <span class="synIdentifier">$hn2</span>-&gt;internal_coords(<span class="synIdentifier">$n2</span>, <span class="synConstant">1.1</span>, <span class="synIdentifier">$c</span>, <span class="synConstant">120</span>, <span class="synIdentifier">$o</span>, <span class="synConstant">180</span>)
+            <span class="synStatement">if</span> <span class="synIdentifier">$hn2</span>-&gt;symbol <span class="synStatement">eq</span> <span class="synConstant">'H'</span>; <span class="synComment"># make sure it's not Proline</span>
+
+        <span class="synComment"># save the new terminal residue's atoms of interest</span>
+        (<span class="synIdentifier">$c</span>, <span class="synIdentifier">$o</span>, <span class="synIdentifier">$ca</span>, <span class="synIdentifier">$n</span>, <span class="synIdentifier">$hn</span>) = (<span class="synIdentifier">$c2</span>, <span class="synIdentifier">$o2</span>, <span class="synIdentifier">$ca2</span>, <span class="synIdentifier">$n2</span>, <span class="synIdentifier">$hn2</span>);
+    }
+
+<span class="synIdentifier">    </span><span class="synStatement">sub</span><span class="synIdentifier"> end_chain </span>{
+        <span class="synStatement">my</span> (<span class="synIdentifier">$chain</span>) = <span class="synIdentifier">@_</span>;
+
+        <span class="synComment"># add the terminal hydroxyl group</span>
+        <span class="synStatement">my</span> <span class="synIdentifier">$ox</span> = <span class="synIdentifier">$chain</span>-&gt;new_atom(
+            <span class="synConstant">symbol </span>=&gt; <span class="synConstant">'O'</span>, 
+            <span class="synConstant">internal_coords </span>=&gt; [ <span class="synIdentifier">$c</span>, <span class="synConstant">1.5</span>, <span class="synIdentifier">$ca</span>, <span class="synConstant">120</span>, <span class="synIdentifier">$o</span>, <span class="synConstant">180</span> ]
+        );
+        <span class="synStatement">my</span> <span class="synIdentifier">$h</span> = <span class="synIdentifier">$chain</span>-&gt;new_atom(
+            <span class="synConstant">symbol </span>=&gt; <span class="synConstant">'H'</span>, 
+            <span class="synConstant">internal_coords </span>=&gt; [ <span class="synIdentifier">$ox</span>, <span class="synConstant">1.1</span>, <span class="synIdentifier">$c</span>, <span class="synConstant">105</span>, <span class="synIdentifier">$o</span>, <span class="synConstant">0</span> ]
+        );
+        <span class="synIdentifier">$chain</span>-&gt;new_bond(<span class="synConstant">atoms </span>=&gt; [<span class="synIdentifier">$ox</span>, <span class="synIdentifier">$c</span>], <span class="synConstant">order </span>=&gt; <span class="synConstant">1</span>);
+        <span class="synIdentifier">$chain</span>-&gt;new_bond(<span class="synConstant">atoms </span>=&gt; [<span class="synIdentifier">$ox</span>, <span class="synIdentifier">$h</span>], <span class="synConstant">order </span>=&gt; <span class="synConstant">1</span>);
+
+        <span class="synComment"># finally, calculate the cartesian coordinates for all the atoms in</span>
+        <span class="synComment"># the chain</span>
+        <span class="synIdentifier">$_</span>-&gt;internal_coords-&gt;add_cartesians <span class="synStatement">for</span> <span class="synIdentifier">$chain</span>-&gt;atoms;
+    }
+
+}
+
+<span class="synComment"># this is like Chemistry::Mol::clone, but assigns a fresh ID to the cloned</span>
+<span class="synComment"># molecule, atoms, and bonds. This should be added to Chemistry::Mol</span>
+<span class="synStatement">sub</span><span class="synIdentifier"> safe_clone </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$mol</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synStatement">my</span> <span class="synIdentifier">$clone</span> = <span class="synIdentifier">$mol</span>-&gt;clone;
+    <span class="synStatement">for</span> (<span class="synIdentifier">$clone</span>, <span class="synIdentifier">$clone</span>-&gt;atoms, <span class="synIdentifier">$clone</span>-&gt;bonds) {
+        <span class="synComment"># this uses the undocumented nextID method in Chemistry::Mol,</span>
+        <span class="synComment"># Chemistry::Atom, and Chemistry::Bond</span>
+        <span class="synIdentifier">$_</span>-&gt;id(<span class="synIdentifier">$_</span>-&gt;nextID);
+    }
+    <span class="synIdentifier">$clone</span>;
+}
+
+<span class="synComment"># takes a sequence string such as &quot;LAVA&quot; and returns a Chemistry::Mol object</span>
+<span class="synStatement">sub</span><span class="synIdentifier"> build_sequence </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$s</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synIdentifier">$s</span> <span class="synStatement">or</span> <span class="synStatement">die</span> <span class="synConstant">&quot;no sequence, stopping &quot;</span>;
+    <span class="synStatement">my</span> <span class="synIdentifier">@seq</span> = <span class="synStatement">split //</span>, <span class="synIdentifier">$s</span>;
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$code</span> = <span class="synStatement">shift</span> <span class="synIdentifier">@seq</span>;
+    <span class="synStatement">my</span> <span class="synIdentifier">$res</span> = amino_acid(<span class="synIdentifier">$code</span>);
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$chain</span> = start_chain(<span class="synIdentifier">$res</span>);
+    <span class="synIdentifier">$chain</span>-&gt;name(<span class="synIdentifier">$s</span>);
+
+    <span class="synStatement">for</span> <span class="synStatement">my</span> <span class="synIdentifier">$code</span> (<span class="synIdentifier">@seq</span>) {
+        <span class="synIdentifier">$res</span> = amino_acid(<span class="synIdentifier">$code</span>);
+        add_residue(<span class="synIdentifier">$chain</span>, <span class="synIdentifier">$res</span>);
+    }
+    end_chain(<span class="synIdentifier">$chain</span>);
+
+    <span class="synStatement">return</span> <span class="synIdentifier">$chain</span>;
+}
+
+
+<span class="synComment">##############################</span>
+
+<span class="synComment"># generate the structure and print it out as an MDL molfile</span>
+<span class="synStatement">my</span> <span class="synIdentifier">$chain</span> = build_sequence(<span class="synStatement">shift</span>);
+<span class="synStatement">print</span> <span class="synIdentifier">$chain</span>-&gt;<span class="synStatement">print</span>(<span class="synConstant">format </span>=&gt; <span class="synConstant">'mdl'</span>);
+
+</pre>
+
+</div>
+
+</body>
+</html>

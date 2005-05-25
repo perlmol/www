@@ -1,0 +1,141 @@
+[% PROCESS head title="Example: File conversion" %]
+
+[% INCLUDE nav.html %]
+<!-- main content -->
+<div class="main">
+<h1>PerlMol - Example: File conversion</h1> 
+
+<p>File conversion example
+<p>Added by Ivan Tubert-Brohman (itub@cpan.org)
+
+<p>This sample program is called 'pbabel' because it is inspired by the Babel
+program and it is written in Perl using PerlMol.
+
+<h2>Usage</h2>
+
+<pre>
+./pbabel.pl [options] &lt;input file&gt; &lt;output file&gt;
+
+Options:
+    -i &lt;input format&gt;
+    -o &lt;output format&gt;
+    -3      build 3d coordinates 
+    -b      find bonds
+    -a      aromatize
+    -K      don't kekulize (only for reading SMILES)
+    -u      unique (only for writing SMILES)
+    -n      include name (only for writing SMILES)
+
+Available file formats:
+    dumper
+    formula
+    formula_pattern
+    mdl
+    midas
+    mop
+    pdb
+    sdf
+    sln
+    smarts
+    smiles
+    xyz
+</pre>
+
+
+<h2>Files</h2>
+
+<ul>
+<li><a href="pbabel.pl">pbabel.pl</a>   - the program
+<li><a href="amines.sdf">amines.sdf</a>  - sample sdf file
+<li><a href="amines.smi">amines.smi</a>  - sample sdf file, generated with ./pbabel.pl -nu amines.sdf x.smi
+</ul>
+
+<h2>Code</h2>
+<pre>
+<span class="synPreProc">#!/home/ivan/bin/perl</span>
+
+<span class="synComment"># This sample program is called 'pbabel' because it is inspired by the Babel</span>
+<span class="synComment"># program and it is written in Perl using PerlMol.</span>
+
+<span class="synComment"># USAGE</span>
+<span class="synComment"># ./pbabel.pl [options] &lt;input file&gt; &lt;output file&gt;</span>
+
+<span class="synStatement">use strict</span>;
+<span class="synStatement">use warnings</span>;
+
+<span class="synComment"># load all File I/O modules</span>
+<span class="synStatement">use </span>Chemistry::File <span class="synConstant">':auto'</span>;
+
+<span class="synComment"># load helper modules for finding bonds, aromatizing, and generating coords</span>
+<span class="synStatement">use </span>Chemistry::3DBuilder <span class="synConstant">'build_3d'</span>;
+<span class="synStatement">use </span>Chemistry::Ring <span class="synConstant">'aromatize_mol'</span>;
+<span class="synStatement">use </span>Chemistry::Bond::Find <span class="synConstant">'find_bonds'</span>;
+
+<span class="synComment"># parse options</span>
+<span class="synStatement">use </span>Getopt::Long;
+Getopt::Long::Configure (<span class="synConstant">&quot;bundling&quot;</span>);
+<span class="synStatement">my</span> (<span class="synIdentifier">$input_format</span>, <span class="synIdentifier">$output_format</span>, <span class="synIdentifier">$build_3d</span>, <span class="synIdentifier">$find_bonds</span>, <span class="synIdentifier">$aromatize</span>,
+    <span class="synIdentifier">$no_kekulize</span>, <span class="synIdentifier">$unique</span>, <span class="synIdentifier">$name</span>); 
+<span class="synStatement">my</span> <span class="synIdentifier">$result</span> = GetOptions(
+    <span class="synConstant">&quot;i=s&quot;</span>    =&gt; <span class="synIdentifier">\$input_format</span>,
+    <span class="synConstant">&quot;o=s&quot;</span>    =&gt; <span class="synIdentifier">\$output_format</span>,
+    <span class="synConstant">&quot;3&quot;</span>      =&gt; <span class="synIdentifier">\$build_3d</span>,
+    <span class="synConstant">&quot;b&quot;</span>      =&gt; <span class="synIdentifier">\$find_bonds</span>,
+    <span class="synConstant">&quot;a&quot;</span>      =&gt; <span class="synIdentifier">\$aromatize</span>,
+    <span class="synConstant">&quot;K&quot;</span>      =&gt; <span class="synIdentifier">\$no_kekulize</span>,
+    <span class="synConstant">&quot;u&quot;</span>      =&gt; <span class="synIdentifier">\$unique</span>,
+    <span class="synConstant">&quot;n&quot;</span>      =&gt; <span class="synIdentifier">\$name</span>,
+);
+
+<span class="synComment"># check if everything is OK, or else print usage info</span>
+<span class="synStatement">if</span> (<span class="synIdentifier">@ARGV</span> != <span class="synConstant">2</span> <span class="synStatement">or</span> !<span class="synIdentifier">$result</span>) {
+    <span class="synStatement">my</span> <span class="synIdentifier">@formats</span> = Chemistry::Mol-&gt;formats;
+    <span class="synStatement">print</span> <span class="synConstant">&lt;&lt;OPTIONS;</span>
+<span class="synIdentifier">$0</span><span class="synConstant"> [options] &lt;input file&gt; &lt;output file&gt;</span>
+
+<span class="synConstant">Options:</span>
+<span class="synConstant">    -i &lt;input format&gt;</span>
+<span class="synConstant">    -o &lt;output format&gt;</span>
+<span class="synConstant">    -3      build 3d coordinates </span>
+<span class="synConstant">    -b      find bonds</span>
+<span class="synConstant">    -a      aromatize</span>
+<span class="synConstant">    -K      don't kekulize (only for reading SMILES)</span>
+<span class="synConstant">    -u      unique (only for writing SMILES)</span>
+<span class="synConstant">    -n      include name (only for writing SMILES)</span>
+
+<span class="synConstant">Available file formats (if omitted they will be guessed):</span>
+<span class="synConstant">OPTIONS</span>
+<span class="synStatement">print</span> <span class="synConstant">&quot;    </span><span class="synIdentifier">$_</span><span class="synSpecial">\n</span><span class="synConstant">&quot;</span> <span class="synStatement">for</span> <span class="synIdentifier">@formats</span>;
+    <span class="synStatement">exit</span>;
+}
+
+<span class="synStatement">my</span> (<span class="synIdentifier">$input_file</span>, <span class="synIdentifier">$output_file</span>) = <span class="synIdentifier">@ARGV</span>;
+
+<span class="synComment"># read the input file</span>
+<span class="synStatement">my</span> <span class="synIdentifier">@mols</span> = Chemistry::Mol-&gt;<span class="synStatement">read</span>(<span class="synIdentifier">$input_file</span>, 
+    <span class="synConstant">format   </span>=&gt; <span class="synIdentifier">$input_format</span>,
+    <span class="synConstant">kekulize </span>=&gt; ! <span class="synIdentifier">$no_kekulize</span>,     <span class="synComment"># only used by SMILES</span>
+);
+
+<span class="synComment"># do optional processing on the molecules</span>
+<span class="synStatement">for</span> <span class="synStatement">my</span> <span class="synIdentifier">$mol</span> (<span class="synIdentifier">@mols</span>) {
+    build_3d(<span class="synIdentifier">$mol</span>)                  <span class="synStatement">if</span> <span class="synIdentifier">$build_3d</span>;
+    find_bonds(<span class="synIdentifier">$mol</span>, <span class="synConstant">orders </span>=&gt; <span class="synConstant">1</span>)   <span class="synStatement">if</span> <span class="synIdentifier">$find_bonds</span>;
+    aromatize_mol(<span class="synIdentifier">$mol</span>)             <span class="synStatement">if</span> <span class="synIdentifier">$aromatize</span>;
+}
+
+<span class="synComment"># write the output file</span>
+<span class="synIdentifier">$mols</span>[<span class="synConstant">0</span>]-&gt;<span class="synStatement">write</span>(<span class="synIdentifier">$output_file</span>, 
+    <span class="synConstant">format </span>=&gt; <span class="synIdentifier">$output_format</span>, 
+    <span class="synConstant">mols   </span>=&gt; <span class="synIdentifier">\@mols</span>,           <span class="synComment"># only used by multi-molecule files </span>
+                                <span class="synComment"># such as SMILES and SDF</span>
+    <span class="synConstant">name   </span>=&gt; <span class="synIdentifier">$name</span>,            <span class="synComment"># only used by SMILES</span>
+    <span class="synConstant">unique </span>=&gt; <span class="synIdentifier">$unique</span>,          <span class="synComment"># only used by SMILES</span>
+);
+
+</pre>
+
+</div>
+
+</body>
+</html>

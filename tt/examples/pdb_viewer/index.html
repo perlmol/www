@@ -1,0 +1,163 @@
+[% PROCESS head title="Example: PDB viewer" %]
+
+[% INCLUDE nav.html %]
+<!-- main content -->
+<div class="main">
+<h1>PerlMol - Example: PDB viewer</h1> 
+
+<p>PDB viewer using OpenGL
+
+<p>Taken from OpenGL-Simple-Viewer-0.03 by Jonathan Chin.
+
+<p>Based on an example by Simon Cozens, published on The Perl Journal (Cozens, S.
+Molecular Biology With Perl. The Perl Journal 2004, 8[8], 15-19).
+
+<p>Note: this requires additonal modules such as OpenGL::Simple::Viewer, which may
+not be easy to install (I have only been able to make it work under Linux). The
+code itself is more useful as an OpenGL tutorial than as a PerlMol tutorial,
+but I include it as it may be of interest to PerlMol users.
+
+
+<h2>Files</h2>
+<ul>
+<li><a href="pdbviewer.pl">pdbviewer.pl</a>  - the program
+<li><a href="example.pdb">example.pdb</a>   - sample file
+</ul>
+
+
+<h2>Code</h2>
+<pre>
+<span class="synPreProc">#!/usr/bin/env perl</span>
+
+<span class="synComment"># Adapted from an original script by Simon Cozens.</span>
+
+<span class="synStatement">use strict</span>;
+<span class="synStatement">use warnings</span>;
+<span class="synStatement">use </span>OpenGL::Simple <span class="synConstant">qw(:all)</span>;
+<span class="synStatement">use </span>OpenGL::Simple::GLUT <span class="synConstant">qw(:all)</span>;
+<span class="synStatement">use </span>OpenGL::Simple::Viewer;
+<span class="synStatement">use </span>Chemistry::File::PDB;
+<span class="synStatement">use </span>Chemistry::Bond::Find <span class="synConstant">':all'</span>;
+
+<span class="synStatement">my</span> (<span class="synIdentifier">$mass_scale</span>,<span class="synIdentifier">$sphericity</span>) = (<span class="synConstant">10</span>,<span class="synConstant">20</span>);
+
+
+<span class="synStatement">my</span> <span class="synIdentifier">%colour</span> = (
+    <span class="synConstant">red     </span>=&gt; [ <span class="synConstant">1</span>,   <span class="synConstant">0</span>,   <span class="synConstant">0</span>,   <span class="synConstant">1</span> ],
+    <span class="synConstant">yellow  </span>=&gt; [ <span class="synConstant">1</span>,   <span class="synConstant">1</span>,   <span class="synConstant">0</span>,   <span class="synConstant">1</span> ],
+    <span class="synConstant">orange  </span>=&gt; [ <span class="synConstant">1</span>,   <span class="synConstant">0.5</span>, <span class="synConstant">0</span>,   <span class="synConstant">1</span> ],
+    <span class="synConstant">green   </span>=&gt; [ <span class="synConstant">0</span>,   <span class="synConstant">1</span>,   <span class="synConstant">0</span>,   <span class="synConstant">1</span> ],
+    <span class="synConstant">cyan    </span>=&gt; [ <span class="synConstant">0</span>,   <span class="synConstant">1</span>,   <span class="synConstant">1</span>,   <span class="synConstant">1</span> ],
+    <span class="synConstant">blue    </span>=&gt; [ <span class="synConstant">0</span>,   <span class="synConstant">0</span>,   <span class="synConstant">1</span>,   <span class="synConstant">1</span> ],
+    <span class="synConstant">magenta </span>=&gt; [ <span class="synConstant">1</span>,   <span class="synConstant">0</span>,   <span class="synConstant">1</span>,   <span class="synConstant">1</span> ],
+    <span class="synConstant">grey    </span>=&gt; [ <span class="synConstant">0.5</span>, <span class="synConstant">0.5</span>, <span class="synConstant">0.5</span>, <span class="synConstant">1</span> ],
+    <span class="synConstant">white   </span>=&gt; [ <span class="synConstant">1</span>,   <span class="synConstant">1</span>,   <span class="synConstant">1</span>,   <span class="synConstant">1</span> ],
+);
+
+<span class="synStatement">my</span> <span class="synIdentifier">%ccache</span>;
+<span class="synStatement">my</span> <span class="synIdentifier">@colours</span> = <span class="synStatement">values</span> <span class="synIdentifier">%colour</span>;
+<span class="synStatement">my</span> <span class="synIdentifier">$iter</span> = <span class="synConstant">0</span>;
+
+<span class="synStatement">my</span> <span class="synIdentifier">%element_colours</span> = (
+    <span class="synConstant">C </span>=&gt; <span class="synIdentifier">$colour</span>{grey},
+    <span class="synConstant">O </span>=&gt; <span class="synIdentifier">$colour</span>{red},
+    <span class="synConstant">N </span>=&gt; <span class="synIdentifier">$colour</span>{blue},
+    <span class="synConstant">H </span>=&gt; <span class="synIdentifier">$colour</span>{white},
+    <span class="synConstant">S </span>=&gt; <span class="synIdentifier">$colour</span>{yellow},
+    <span class="synConstant">P </span>=&gt; <span class="synIdentifier">$colour</span>{orange},
+
+);
+
+
+<span class="synStatement">my</span> <span class="synIdentifier">@ballpoints</span> = ();
+<span class="synStatement">my</span> <span class="synIdentifier">@ballsticks</span> = ();
+
+<span class="synIdentifier">$|</span>=<span class="synConstant">1</span>;
+<span class="synStatement">my</span> <span class="synIdentifier">$filename</span> = <span class="synStatement">shift</span> <span class="synStatement">or</span> <span class="synStatement">die</span>(<span class="synConstant">&quot;Need PDB filename&quot;</span>);
+<span class="synStatement">print</span> <span class="synConstant">&quot;Reading molecule..&quot;</span>;
+<span class="synStatement">my</span> <span class="synIdentifier">$mol</span> = Chemistry::MacroMol-&gt;<span class="synStatement">read</span>(<span class="synIdentifier">$filename</span>);
+<span class="synStatement">print</span> <span class="synConstant">&quot; finding bonds..&quot;</span>;
+find_bonds(<span class="synIdentifier">$mol</span>);
+<span class="synStatement">print</span> <span class="synConstant">&quot; done.</span><span class="synSpecial">\n</span><span class="synConstant">&quot;</span>;
+
+<span class="synStatement">my</span> <span class="synIdentifier">$displaylist</span>;
+
+glutInit;
+
+<span class="synStatement">my</span> <span class="synIdentifier">$v</span>  = <span class="synStatement">new</span> OpenGL::Simple::Viewer(
+        <span class="synConstant">title </span>=&gt; <span class="synConstant">'PerlMol'</span>,
+        <span class="synConstant">draw_geometry </span>=&gt;<span class="synIdentifier"> </span><span class="synStatement">sub</span><span class="synIdentifier"> </span>{ 
+                <span class="synStatement">if</span> (!<span class="synIdentifier">$displaylist</span>) { build_displaylist(); }
+                glCallList(<span class="synIdentifier">$displaylist</span>);
+        },
+        <span class="synConstant">screenx </span>=&gt; <span class="synConstant">512</span>, <span class="synConstant">screeny </span>=&gt; <span class="synConstant">512</span>,
+);
+
+glClearColor(<span class="synConstant">1</span>,<span class="synConstant">1</span>,<span class="synConstant">1</span>,<span class="synConstant">1</span>);
+
+glutMainLoop;
+
+<span class="synStatement">exit</span> <span class="synConstant">0</span>;
+
+
+
+<span class="synStatement">sub</span><span class="synIdentifier"> recenter </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">@center</span>;
+    <span class="synStatement">my</span> <span class="synIdentifier">@atoms</span> = <span class="synIdentifier">$mol</span>-&gt;atoms;
+    <span class="synStatement">for</span> (<span class="synIdentifier">@atoms</span>) {
+        <span class="synStatement">my</span> <span class="synIdentifier">@coords</span> = <span class="synIdentifier">$_</span>-&gt;coords-&gt;array;
+        <span class="synIdentifier">$center</span>[<span class="synIdentifier">$_</span>] += <span class="synIdentifier">$coords</span>[<span class="synIdentifier">$_</span>] <span class="synStatement">for</span> <span class="synConstant">0.</span>.<span class="synConstant">2</span>;
+    }
+    <span class="synIdentifier">$center</span>[<span class="synIdentifier">$_</span>] /= <span class="synIdentifier">@atoms</span> <span class="synStatement">for</span> <span class="synConstant">0.</span>.<span class="synConstant">2</span>;
+    <span class="synStatement">my</span> <span class="synIdentifier">$center_v</span> = Math::VectorReal-&gt;<span class="synStatement">new</span>(<span class="synIdentifier">@center</span>);
+    <span class="synStatement">for</span> (<span class="synIdentifier">@atoms</span>) { <span class="synIdentifier">$_</span>-&gt;coords(<span class="synIdentifier">$_</span>-&gt;coords - <span class="synIdentifier">$center_v</span>) }
+}
+
+<span class="synStatement">sub</span><span class="synIdentifier"> make_model </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$i</span> = <span class="synConstant">0</span>;
+    recenter();
+    <span class="synStatement">my</span> <span class="synIdentifier">@atoms</span> = <span class="synIdentifier">$mol</span>-&gt;atoms;
+    <span class="synStatement">for</span> <span class="synStatement">my</span> <span class="synIdentifier">$atom</span> ( <span class="synIdentifier">@atoms</span> ) {
+        <span class="synStatement">my</span> <span class="synIdentifier">$mass</span>   = <span class="synStatement">log</span>( <span class="synConstant">1</span> + <span class="synIdentifier">$atom</span>-&gt;mass ) / <span class="synIdentifier">$mass_scale</span>;
+        <span class="synStatement">my</span> <span class="synIdentifier">$color</span>  = <span class="synIdentifier">$element_colours</span>{ <span class="synIdentifier">$atom</span>-&gt;symbol } || <span class="synIdentifier">$colour</span>{cyan};
+
+        <span class="synStatement">my</span> <span class="synIdentifier">@coords</span> = <span class="synIdentifier">$atom</span>-&gt;coords-&gt;array;
+        <span class="synStatement">push</span> <span class="synIdentifier">@ballpoints</span>, [ <span class="synIdentifier">$color</span>, <span class="synIdentifier">$mass</span>, <span class="synIdentifier">@coords</span> ];
+    }
+    <span class="synStatement">for</span> <span class="synStatement">my</span> <span class="synIdentifier">$bond</span> ( <span class="synIdentifier">$mol</span>-&gt;bonds ) {
+        <span class="synStatement">my</span> ( <span class="synIdentifier">$from</span>, <span class="synIdentifier">$to</span> ) = <span class="synIdentifier">$bond</span>-&gt;atoms;
+        <span class="synStatement">my</span> <span class="synIdentifier">@from</span> = <span class="synIdentifier">$from</span>-&gt;coords-&gt;array;
+        <span class="synStatement">my</span> <span class="synIdentifier">@to</span>   = <span class="synIdentifier">$to</span>-&gt;coords-&gt;array;
+        <span class="synStatement">push</span> <span class="synIdentifier">@ballsticks</span>, [ <span class="synIdentifier">\@from</span>, <span class="synIdentifier">\@to</span> ];
+    }
+
+}
+
+<span class="synStatement">sub</span><span class="synIdentifier"> visualize </span>{
+    <span class="synStatement">if</span> ( !<span class="synIdentifier">@ballpoints</span> ) { make_model() }
+    <span class="synStatement">for</span> (<span class="synIdentifier">@ballpoints</span>) {
+        <span class="synStatement">my</span> ( <span class="synIdentifier">$color</span>, <span class="synIdentifier">$mass</span>, <span class="synIdentifier">@coords</span> ) = <span class="synIdentifier">@$_</span>;
+        glColor(<span class="synIdentifier">@$color</span>);
+        glPushMatrix;
+        glTranslate(<span class="synIdentifier">@coords</span>);
+        glutSolidSphere( <span class="synIdentifier">$mass</span> , <span class="synIdentifier">$sphericity</span>, <span class="synIdentifier">$sphericity</span>);
+        glPopMatrix;
+    }
+
+    glColor( @{ <span class="synIdentifier">$colour</span>{<span class="synConstant">'grey'</span>} } );
+    glLineWidth(<span class="synConstant">4</span>);
+    <span class="synStatement">for</span> (<span class="synIdentifier">@ballsticks</span>) { glBegin(GL_LINES); glVertex(<span class="synIdentifier">@$_</span>) <span class="synStatement">for</span> <span class="synIdentifier">@$_</span>; glEnd; }
+}
+
+<span class="synStatement">sub</span><span class="synIdentifier"> build_displaylist </span>{
+        <span class="synIdentifier">$displaylist</span> = glGenLists(<span class="synConstant">1</span>);
+        glNewList(<span class="synIdentifier">$displaylist</span>,GL_COMPILE);
+        visualize();
+        glEndList();
+}
+</pre>
+
+</div>
+
+</body>
+</html>

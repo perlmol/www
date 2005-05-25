@@ -1,0 +1,103 @@
+[% PROCESS head title="Example: Combinatorial enumeration" %]
+
+[% INCLUDE nav.html %]
+<!-- main content -->
+<div class="main">
+<h1>PerlMol - Example: Combinatorial enumeration</h1> 
+
+<p>Combinatorial library enumeration example.
+<p>Sent by Konrad Koehler, Karo Bio AB
+
+<p>Read in two SMILES files, one containing amines and the second acyl chlorides
+and print out SMILES strings of the product amides.
+
+<h2>Files</h2>
+
+<ul>
+<li><a href="combinatorial_enumeration.pl">combinatorial_enumeration.pl</a>  - the program
+<li><a href="amines.smi">amines.smi</a>                    - reactant amines
+<li><a href="acid_chlorides.smi">acid_chlorides.smi</a>            - reactant acid chlorides
+<li><a href="output.smi">output.smi</a>                    - expected output
+</ul>
+
+<h2>Code</h2>
+<pre>
+<span class="synPreProc">#!/usr/bin/perl</span>
+
+<span class="synComment"># Combinatorial library enumeration example.</span>
+<span class="synComment"># Sent by Konrad Koehler, Karo Bio AB</span>
+
+<span class="synComment"># Read in two SMILES files, one containing amines and the second acyl chlorides</span>
+<span class="synComment"># and print out SMILES strings of the product amides.</span>
+<span class="synComment"># Input files: &lt;amines.smi&gt; and &lt;acid_chlorides.smi&gt;</span>
+<span class="synComment"># Output: STDOUT</span>
+
+<span class="synStatement">use strict</span>;
+<span class="synStatement">use warnings</span>;
+<span class="synStatement">use </span>Chemistry::File::SMILES;
+<span class="synStatement">use </span>Chemistry::File::SMARTS;
+<span class="synStatement">use </span>Chemistry::Ring <span class="synConstant">'aromatize_mol'</span>;
+
+<span class="synComment">#  read in two files of reagents</span>
+<span class="synStatement">my</span> <span class="synIdentifier">@react1</span> = Chemistry::Mol-&gt;<span class="synStatement">read</span>(<span class="synConstant">'amines.smi'</span>);
+<span class="synStatement">my</span> <span class="synIdentifier">@react2</span> = Chemistry::Mol-&gt;<span class="synStatement">read</span>(<span class="synConstant">'acid_chlorides.smi'</span>);
+
+<span class="synComment"># define SMARTS patterns for reactive functional groups</span>
+
+<span class="synComment"># 1. amine (but not tertiary) or aromatic nitrogen with attached hydrogen atom</span>
+<span class="synStatement">my</span> <span class="synIdentifier">$fg1</span>     = <span class="synConstant">'[N&amp;!D3,n&amp;h1,n&amp;H1]'</span>;
+<span class="synStatement">my</span> <span class="synIdentifier">$fg1_pat</span> = Chemistry::Pattern-&gt;parse(<span class="synConstant">&quot;</span><span class="synIdentifier">$fg1</span><span class="synConstant">&quot;</span>, <span class="synConstant">format </span>=&gt; <span class="synConstant">'smarts'</span>);
+
+<span class="synComment"># 2. acid chloride</span>
+<span class="synStatement">my</span> <span class="synIdentifier">$fg2</span>     = <span class="synConstant">'C(Cl)=O'</span>;
+<span class="synStatement">my</span> <span class="synIdentifier">$fg2_pat</span> = Chemistry::Pattern-&gt;parse(<span class="synConstant">&quot;</span><span class="synIdentifier">$fg2</span><span class="synConstant">&quot;</span>, <span class="synConstant">format </span>=&gt; <span class="synConstant">'smarts'</span>);
+
+<span class="synComment"># loop over both sets of reactants</span>
+
+<span class="synStatement">my</span> <span class="synIdentifier">@prod</span>;
+<span class="synStatement">for</span> (<span class="synStatement">my</span> <span class="synIdentifier">$i</span> = <span class="synConstant">0</span> ; <span class="synIdentifier">$i</span> &lt;= <span class="synIdentifier">$#react1</span> ; <span class="synIdentifier">$i</span>++) {
+    <span class="synStatement">for</span> (<span class="synStatement">my</span> <span class="synIdentifier">$j</span> = <span class="synConstant">0</span> ; <span class="synIdentifier">$j</span> &lt;= <span class="synIdentifier">$#react2</span> ; <span class="synIdentifier">$j</span>++) {
+
+        <span class="synComment"># the next two lines are needed whenever SMARTS patterns depend on</span>
+        <span class="synComment"># aromatic/nonaromatic properties</span>
+        aromatize_mol(<span class="synIdentifier">$react1</span>[<span class="synIdentifier">$i</span>]);
+        aromatize_mol(<span class="synIdentifier">$react2</span>[<span class="synIdentifier">$j</span>]);
+
+        <span class="synComment"># combine two reagents to form a new disconected molecule</span>
+        <span class="synStatement">my</span> <span class="synIdentifier">$name</span> = <span class="synIdentifier">$react1</span>[<span class="synIdentifier">$i</span>]-&gt;name . <span class="synConstant">&quot;+&quot;</span> . <span class="synIdentifier">$react2</span>[<span class="synIdentifier">$j</span>]-&gt;name;
+        <span class="synIdentifier">$prod</span>[<span class="synIdentifier">$i</span>][<span class="synIdentifier">$j</span>] = Chemistry::Mol-&gt;<span class="synStatement">new</span>(<span class="synConstant">name </span>=&gt; <span class="synIdentifier">$name</span>);
+        <span class="synIdentifier">$prod</span>[<span class="synIdentifier">$i</span>][<span class="synIdentifier">$j</span>]-&gt;combine(<span class="synIdentifier">$react1</span>[<span class="synIdentifier">$i</span>], <span class="synIdentifier">$react2</span>[<span class="synIdentifier">$j</span>]);
+
+        <span class="synComment"># find reactive functional groups</span>
+        <span class="synIdentifier">$fg1_pat</span>-&gt;match(<span class="synIdentifier">$prod</span>[<span class="synIdentifier">$i</span>][<span class="synIdentifier">$j</span>]);
+        <span class="synStatement">my</span> <span class="synIdentifier">@nfg1</span> = <span class="synIdentifier">$fg1_pat</span>-&gt;atom_map;
+        <span class="synIdentifier">$fg2_pat</span>-&gt;match(<span class="synIdentifier">$prod</span>[<span class="synIdentifier">$i</span>][<span class="synIdentifier">$j</span>]);
+        <span class="synStatement">my</span> <span class="synIdentifier">@nfg2</span> = <span class="synIdentifier">$fg2_pat</span>-&gt;atom_map;
+
+        <span class="synComment"># test to make sure both reactants have required functional groups</span>
+        <span class="synComment"># if not, skip</span>
+        <span class="synStatement">if</span> (<span class="synIdentifier">$nfg1</span>[<span class="synConstant">0</span>] &amp;&amp; <span class="synIdentifier">$nfg2</span>[<span class="synConstant">0</span>] &amp;&amp; <span class="synIdentifier">$nfg2</span>[<span class="synConstant">1</span>]) {
+
+            <span class="synComment"># delete displaced atoms (i.e., H and Cl) to create two radicals</span>
+            <span class="synStatement">my</span> <span class="synIdentifier">$h_count</span> = <span class="synIdentifier">$nfg1</span>[<span class="synConstant">0</span>]-&gt;implicit_hydrogens();
+            <span class="synIdentifier">$h_count</span> = <span class="synIdentifier">$h_count</span> - <span class="synConstant">1</span>;
+            <span class="synIdentifier">$nfg1</span>[<span class="synConstant">0</span>]-&gt;implicit_hydrogens(<span class="synIdentifier">$h_count</span>);
+            <span class="synIdentifier">$prod</span>[<span class="synIdentifier">$i</span>][<span class="synIdentifier">$j</span>]-&gt;delete_atom(<span class="synIdentifier">$nfg2</span>[<span class="synConstant">1</span>]);
+
+            <span class="synComment"># add a bond between the two radicals to form the product</span>
+            <span class="synIdentifier">$prod</span>[<span class="synIdentifier">$i</span>][<span class="synIdentifier">$j</span>]
+              -&gt;new_bond(<span class="synConstant">atoms </span>=&gt; [<span class="synIdentifier">$nfg1</span>[<span class="synConstant">0</span>], <span class="synIdentifier">$nfg2</span>[<span class="synConstant">0</span>]], <span class="synConstant">order </span>=&gt; <span class="synConstant">'1'</span>);
+            <span class="synStatement">my</span> <span class="synIdentifier">$smi</span> =
+              <span class="synIdentifier">$prod</span>[<span class="synIdentifier">$i</span>][<span class="synIdentifier">$j</span>]-&gt;<span class="synStatement">print</span>(<span class="synConstant">format </span>=&gt; <span class="synConstant">'smiles'</span>, <span class="synConstant">unique </span>=&gt; <span class="synConstant">1</span>, <span class="synConstant">name </span>=&gt; <span class="synConstant">1</span>);
+
+            <span class="synComment">#  print out the product!</span>
+            <span class="synStatement">print</span> <span class="synConstant">&quot;</span><span class="synIdentifier">$smi</span><span class="synSpecial">\n</span><span class="synConstant">&quot;</span>;
+        }
+    }
+}
+</pre>
+
+</div>
+
+</body>
+</html>
