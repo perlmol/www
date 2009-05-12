@@ -1,12 +1,15 @@
 #!/bin/bash
 
+echo DEPRECATED! Use makefile instead
+exit;
+
 #if false ; then
 
 echo "converting PODs to HTML"
-./mypod2html.pl -d6 -b tt/pod `cat podlist.txt`
-./mypod2html.pl -d6 -b tt/pod -s3 `cat tut.txt`
-./mypod2html.pl -d3 -b tt/pod `cat bins.txt`
-./mypod2html.pl -d6 -b tt/pod `cat index.txt`
+./mypod2html.pl -d7 -b tt/pod `cat podlist.txt`
+./mypod2html.pl -d7 -b tt/pod -s3 `cat tut.txt`
+./mypod2html.pl -d4 -b tt/pod `cat bins.txt`
+./mypod2html.pl -d7 -b tt/pod `cat index.txt`
 
 echo "converting PODs to PDF"
 cd tex

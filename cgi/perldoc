@@ -21,6 +21,7 @@ my @modules = qw(
     Chemistry::FormulaPattern Chemistry::Reaction Chemistry::Isotope
     Chemistry::MidasPattern Chemistry::File::MidasPattern
     Chemistry::3DBuilder Chemistry::File::VRML
+    Chemistry::File::QChemOut
 );
 
 my %modules;

@@ -1,1 +1,1 @@
-/usr/lib/perl5/site_perl/5.8.5/Chemistry/Tutorial.pod
+/home/tubert/lib/perl5/site_perl/5.8.8/Chemistry/Tutorial.pod

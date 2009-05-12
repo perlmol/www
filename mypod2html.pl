@@ -9,8 +9,8 @@ use strict;
 use warnings;
 use File::Path;
 use Getopt::Std;
-use lib '/home/ivan/devel/Pod-HtmlEasy';
-use Pod::HtmlEasy;
+#use lib '/home/ivan/devel/Pod-HtmlEasy';
+use Pod::HtmlEasy; # NOTE: needs version 0.07 (exactly!)
 
 my %opts;
 getopts("d:s:b:", \%opts);
@@ -31,6 +31,7 @@ my $podhtml = Pod::HtmlEasy->new(
 
 
 for my $file (@ARGV) {
+    #print "(($file))\n";
 
     my $name = $podhtml->pm_name($file);
 
@@ -41,6 +42,7 @@ for my $file (@ARGV) {
 [% INCLUDE nav.html $section %]
 <div class="main">
 TT
+    #print "(($head))\n";
     my $foot = "</div></body></html>\n";
 
     my @path = split '/', $file;
