@@ -24,11 +24,3 @@ tar:
 upload:
 	rsync -avz htdocs itubert,perlmol@web.sourceforge.net:
 	rsync -avz cgi/ itubert,perlmol@web.sourceforge.net:cgi-bin
-	#echo "copying tarball"
-	#scp web.tgz shell.sf.net:perlmol
-	#echo "installing tarball"
-	#ssh shell.sf.net 'cd perlmol && tar xvzf web.tgz'
-	#echo installing CGIs
-	#scp cgi/[a-z]* shell.sf.net:perlmol/cgi-bin
-
-
